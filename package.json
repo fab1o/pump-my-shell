@@ -1,0 +1,26 @@
+{
+  "author": "Fabio Costa",
+  "bugs": {
+    "url": "https://github.com/fab1o/pump-my-shell/issues"
+  },
+  "description": "A custom Oh My Posh theme, loosely inspired by robbyrussell's, with a fully configurable set of aliases and functions to supercharge your Zsh experience.",
+  "homepage": "https://github.com/fab1o/pump-my-shell#readme",
+  "license": "GPL-3.0",
+  "name": "pump-my-shell",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fab1o/pump-my-shell.git"
+  },
+  "scripts": {
+    "dev": "echo 'Running in development mode'",
+    "editzshrc": "zsh ./scripts/edit_zshrc.zsh",
+    "install": "bash ./scripts/install.sh",
+    "install_deps": "bash ./scripts/install_deps.sh",
+    "prod": "echo 'Running in production mode'",
+    "stage": "echo 'Running in staging mode'",
+    "update": "zsh ./scripts/update.zsh",
+    "update_bash": "bash ./scripts/update.sh",
+    "update_config": "zsh ./scripts/update_config.zsh"
+  },
+  "version": "0.0.1"
+}

@@ -1,0 +1,6 @@
+# .github/ISSUE_TEMPLATE/config.yml
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/fab1o/pump-my-shell/wiki
+    about: Read our docs before submitting issues.

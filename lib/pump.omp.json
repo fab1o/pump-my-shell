@@ -1,0 +1,115 @@
+{
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "blocks": [
+    {
+      "alignment": "left",
+      "segments": [
+        {
+          "background": "transparent",
+          "foreground": "p:greenbright",
+          "style": "plain",
+          "template": "➜ ",
+          "type": "text"
+        },
+        {
+          "background": "transparent",
+          "foreground": "p:gruvcyanlight",
+          "properties": {
+            "style": "folder"
+          },
+          "style": "plain",
+          "template": "<b>{{ .Path }}</b> ",
+          "type": "path"
+        },
+        {
+          "background": "transparent",
+          "foreground": "p:gruvbluedark",
+          "properties": {
+            "style": "folder"
+          },
+          "style": "plain",
+          "template": "<b>{{ .Env.Z_PROJECT_SHORT_NAME }}{{if .Env.Z_PROJECT_SHORT_NAME}}⟣{{ end }}</b>",
+          "type": "path"
+        },
+        {
+          "background": "transparent",
+          "foreground": "p:gruvblue",
+          "foreground_templates": [
+            "{{ if and (gt .Behind 0) (gt .Ahead 0) }}p:gruvredlight{{ end }}",
+            "{{ if gt .Ahead 0 }}p:gruvyellow{{ end }}",
+            "{{ if gt .Behind 0 }}p:gruvmagentalight{{ end }}",
+            "{{ if or (.Working.Changed) (.Staging.Changed) }}p:orange{{ end }}"
+          ],
+          "properties": {
+            "branch_icon": "",
+            "branch_template": "{{ .Branch }}",
+            "fetch_status": true
+          },
+          "style": "plain",
+          "template": "<b>{{if .BranchStatus}}{{.BranchStatus}}{{ end }}:({{.HEAD}}){{ if or (.Working.Changed) (.Staging.Changed) }}✗{{ end }}</b>",
+          "type": "git"
+        },
+        {
+          "background": "transparent",
+          "foreground": "p:purple",
+          "properties": {
+            "always_enabled": true
+          },
+          "style": "plain",
+          "template": "<b> {{.FormattedMs}}</b>",
+          "type": "executiontime"
+        },
+        {
+          "background": "transparent",
+          "foreground": "p:purple",
+          "foreground_templates": [
+            "{{ if .Error }}p:gruvred{{ end }}"
+          ],
+          "properties": {
+            "always_enabled": true
+          },
+          "style": "plain",
+          // https://jrgraphix.net/r/Unicode/2700-27BF
+          "template": "<b>{{ if gt .Code 0 }}✗{{ else }}✓{{ end }}</b>",
+          "type": "status"
+        }
+      ],
+      "type": "prompt"
+    }
+  ],
+  "console_title_template": "{{ .UserName }} @ {{ .Shell }} in {{ .Folder }}",
+  "final_space": true,
+  "palette": {
+    "blue": "#2470ad",
+    "bluedark": "#20649b",
+    "greenbright": "#00FF00",
+    "gruvblack": "#353535",
+    "gruvblacklight": "#a09588",
+    "gruvblue": "#649498",
+    "gruvbluedark": "#507679",
+    "gruvbluelight": "#9ab2a8",
+    "gruvcyan": "#84a981",
+    "gruvcyanlight": "#a8ce94",
+    "gruvgreen": "#a7a53d",
+    "gruvgreenlight": "#c4c44e",
+    "gruvmagenta": "#b57b96",
+    "gruvmagentalight": "#d29daa",
+    "gruvred": "#c64631",
+    "gruvredlight": "#eb6b4e",
+    "gruvwhite": "#b4a998",
+    "gruvwhitelight": "#ece1c2",
+    "gruvyellow": "#d7aa46",
+    "gruvyellowlight": "#f3c958",
+    "orange": "#F07623",
+    "orangedark": "#d86a1f",
+    "purple": "#83769c",
+    "purpledark": "#756a8c"
+  },
+  "upgrade": {
+    "auto": false,
+    "interval": "168h",
+    "notice": true,
+    "source": "cdn"
+  },
+  "version": 3
+}
