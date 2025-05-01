@@ -133,26 +133,30 @@ Z_PR_REPLACE_3=
 
 # optional
 # default: 0
+<<<<<<< HEAD
 # 1 to append commit messages after Z_PR_REPLACE or 0 to replace it.
+=======
+# Set to 1 to append commit messages after Z_PR_REPLACE or 0 to replace it.
+>>>>>>> a88bad4 (0.0.1)
 Z_PR_APPEND_1=0
 Z_PR_APPEND_2=0
 Z_PR_APPEND_3=0
 
 # optional
 # default: 0
-# 1 to run tests before pushing code and creating a pr or 0 to not run tests. If tests fail, pr is aborted.
+# Set to 1 to run tests before pushing code and creating a pr or 0 to not run tests. If tests fail, pr is aborted.
 Z_PR_RUN_TEST_1=0
 Z_PR_RUN_TEST_2=0
 Z_PR_RUN_TEST_3=0
 
 # optional
-# 1 to automatically add all changes to index before commit and recommit
+# Set to 1 to automatically add all changes to index before commit and recommit, 0 to not do anything
 Z_COMMIT_ADD_1=
 Z_COMMIT_ADD_2=
 Z_COMMIT_ADD_3=
 
 # optional
-# 1 to automatically push on refix and recommit
+# Set to 1 to automatically push on refix and recommit, 0 to not push
 Z_PUSH_AFTER_REFIX_1=
 Z_PUSH_AFTER_REFIX_2=
 Z_PUSH_AFTER_REFIX_3=

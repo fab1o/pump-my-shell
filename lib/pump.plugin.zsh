@@ -209,105 +209,126 @@ update_() {
 
 # ========================================================================
 # Project configuration
-PUMP_CONFIG="$(dirname "$0")/config/pump.zshenv"
-PUMP_PRO="$(dirname "$0")/.pump"
-PUMP_VERSION=$(cat "$(dirname "$0")/.version")
+PUMP_CONFIG_FILE="$(dirname "$0")/config/pump.zshenv"
+
+if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+  echo "$red_cor fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell $clear_cor"
+  return 1
+fi
+
+PUMP_PRO_FILE="$(dirname "$0")/.pump"
+PUMP_VERSION="0.0.0"
+PUMP_WORKING_BRANCH_1=""
+PUMP_WORKING_BRANCH_2=""
+PUMP_WORKING_BRANCH_3=""
+
+file_path="$(dirname "$0")/.version"
+[[ -f "$file_path" ]] && PUMP_VERSION=$(<"$file_path")
+
+PUMP_WORKING_BRANCH_FILE_1="$(dirname "$0")/.working_branch_1"
+[[ -f "$PUMP_WORKING_BRANCH_FILE_1" ]] && PUMP_WORKING_BRANCH_1=$(<"$PUMP_WORKING_BRANCH_FILE_1")
+
+PUMP_WORKING_BRANCH_FILE_2="$(dirname "$0")/.working_branch_2"
+[[ -f "$PUMP_WORKING_BRANCH_FILE_2" ]] && PUMP_WORKING_BRANCH_2=$(<"$PUMP_WORKING_BRANCH_FILE_2")
+
+PUMP_WORKING_BRANCH_FILE_3="$(dirname "$0")/.working_branch_3"
+[[ -f "$PUMP_WORKING_BRANCH_FILE_3" ]] && PUMP_WORKING_BRANCH_3=$(<"$PUMP_WORKING_BRANCH_FILE_3")
 # ========================================================================
 
 # project 1 ==============================================================
-Z_PROJECT_FOLDER_1_=$(sed -n 's/^Z_PROJECT_FOLDER_1=\([^ ]*\)/\1/p' "$PUMP_CONFIG"); Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_/#\~/$HOME}"
+Z_PROJECT_FOLDER_1_=$(sed -n 's/^Z_PROJECT_FOLDER_1=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE"); Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_/#\~/$HOME}"
 if [[ -n "$Z_PROJECT_FOLDER_1_" ]]; then
   Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_%/}"
   Z_PROJECT_FOLDER_1=$(realpath "$Z_PROJECT_FOLDER_1_" 2> /dev/null)
 fi
-Z_PROJECT_SHORT_NAME_1=$(sed -n 's/^Z_PROJECT_SHORT_NAME_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PROJECT_REPO_1=$(sed -n 's/^Z_PROJECT_REPO_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PACKAGE_MANAGER_1=${$(sed -n 's/^Z_PACKAGE_MANAGER_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-npm}
-Z_CODE_EDITOR_1=${$(sed -n 's/^Z_CODE_EDITOR_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-code}
-Z_CLONE_1=$(sed -n 's/^Z_CLONE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_SETUP_1=$(sed -n 's/^Z_SETUP_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_RUN_1=${$(sed -n 's/^Z_RUN_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")dev}
-Z_RUN_STAGE_1=${$(sed -n 's/^Z_RUN_STAGE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")stage}
-Z_RUN_PROD_1=${$(sed -n 's/^Z_RUN_PROD_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")prod}
-Z_PRO_1=$(sed -n 's/^Z_PRO_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_TEST_1=${$(sed -n 's/^Z_TEST_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test}
-Z_COV_1=${$(sed -n 's/^Z_COV_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:coverage}
-Z_TEST_WATCH_1=${$(sed -n 's/^Z_TEST_WATCH_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:watch}
-Z_E2E_1=${$(sed -n 's/^Z_E2E_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:e2e}
-Z_E2EUI_1=${$(sed -n 's/^Z_E2EUI_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
-Z_PR_TEMPLATE_1=$(sed -n 's/^Z_PR_TEMPLATE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PR_REPLACE_1=$(sed -n 's/^Z_PR_REPLACE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PR_APPEND_1=${$(sed -n 's/^Z_PR_APPEND_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-0}
-Z_PR_RUN_TEST_1=$(sed -n 's/^Z_PR_RUN_TEST_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_GHA_INTERVAL_1=${$(sed -n 's/^Z_GHA_INTERVAL_1=\([^ ]*\)/\1/p' $PUMP_CONFIG):-10}
-Z_COMMIT_ADD_1=$(sed -n 's/^Z_COMMIT_ADD_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_DEFAULT_BRANCH_1=$(sed -n 's/^Z_DEFAULT_BRANCH_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_GHA_WORKFLOW_1=$(sed -n 's/^Z_GHA_WORKFLOW_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PUSH_AFTER_REFIX_1=$(sed -n 's/^Z_PUSH_AFTER_REFIX_1=\([^ ]*\)/\1/p' $PUMP_CONFIG)
+Z_PROJECT_SHORT_NAME_1=$(sed -n 's/^Z_PROJECT_SHORT_NAME_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PROJECT_REPO_1=$(sed -n 's/^Z_PROJECT_REPO_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PACKAGE_MANAGER_1=${$(sed -n 's/^Z_PACKAGE_MANAGER_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-npm}
+Z_CODE_EDITOR_1=${$(sed -n 's/^Z_CODE_EDITOR_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-code}
+Z_CLONE_1=$(sed -n 's/^Z_CLONE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_SETUP_1=$(sed -n 's/^Z_SETUP_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_RUN_1=${$(sed -n 's/^Z_RUN_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")dev}
+Z_RUN_STAGE_1=${$(sed -n 's/^Z_RUN_STAGE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")stage}
+Z_RUN_PROD_1=${$(sed -n 's/^Z_RUN_PROD_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")prod}
+Z_PRO_1=$(sed -n 's/^Z_PRO_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_TEST_1=${$(sed -n 's/^Z_TEST_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test}
+Z_COV_1=${$(sed -n 's/^Z_COV_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:coverage}
+Z_TEST_WATCH_1=${$(sed -n 's/^Z_TEST_WATCH_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:watch}
+Z_E2E_1=${$(sed -n 's/^Z_E2E_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:e2e}
+Z_E2EUI_1=${$(sed -n 's/^Z_E2EUI_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
+Z_PR_TEMPLATE_1=$(sed -n 's/^Z_PR_TEMPLATE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PR_REPLACE_1=$(sed -n 's/^Z_PR_REPLACE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PR_APPEND_1=${$(sed -n 's/^Z_PR_APPEND_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
+Z_PR_RUN_TEST_1=$(sed -n 's/^Z_PR_RUN_TEST_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_GHA_INTERVAL_1=${$(sed -n 's/^Z_GHA_INTERVAL_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-10}
+Z_COMMIT_ADD_1=$(sed -n 's/^Z_COMMIT_ADD_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_DEFAULT_BRANCH_1=$(sed -n 's/^Z_DEFAULT_BRANCH_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_GHA_WORKFLOW_1=$(sed -n 's/^Z_GHA_WORKFLOW_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PUSH_AFTER_REFIX_1=$(sed -n 's/^Z_PUSH_AFTER_REFIX_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 
 # project 2 ========================================================================
 Z_PROJECT_FOLDER_2=""
-Z_PROJECT_FOLDER_2_=$(sed -n 's/^Z_PROJECT_FOLDER_2=\([^ ]*\)/\1/p' "$PUMP_CONFIG"); Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_/#\~/$HOME}"
+Z_PROJECT_FOLDER_2_=$(sed -n 's/^Z_PROJECT_FOLDER_2=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE"); Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_/#\~/$HOME}"
 if [[ -n "$Z_PROJECT_FOLDER_2_" ]]; then
   Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_%/}"
   Z_PROJECT_FOLDER_2=$(realpath "$Z_PROJECT_FOLDER_2_" 2> /dev/null)
 fi
-Z_PROJECT_SHORT_NAME_2=$(sed -n 's/^Z_PROJECT_SHORT_NAME_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PROJECT_REPO_2=$(sed -n 's/^Z_PROJECT_REPO_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PACKAGE_MANAGER_2=${$(sed -n 's/^Z_PACKAGE_MANAGER_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-npm};
-Z_CODE_EDITOR_2=${$(sed -n 's/^Z_CODE_EDITOR_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-code}
-Z_CLONE_2=$(sed -n 's/^Z_CLONE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_SETUP_2=$(sed -n 's/^Z_SETUP_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_RUN_2=${$(sed -n 's/^Z_RUN_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")dev}
-Z_RUN_STAGE_2=${$(sed -n 's/^Z_RUN_STAGE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")stage}
-Z_RUN_PROD_2=${$(sed -n 's/^Z_RUN_PROD_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")prod}
-Z_PRO_2=$(sed -n 's/^Z_PRO_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_TEST_2=${$(sed -n 's/^Z_TEST_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test}
-Z_COV_2=${$(sed -n 's/^Z_COV_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:coverage}
-Z_TEST_WATCH_2=${$(sed -n 's/^Z_TEST_WATCH_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:watch}
-Z_E2E_2=${$(sed -n 's/^Z_E2E_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:e2e}
-Z_E2EUI_2=${$(sed -n 's/^Z_E2EUI_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
-Z_PR_TEMPLATE_2=$(sed -n 's/^Z_PR_TEMPLATE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PR_REPLACE_2=$(sed -n 's/^Z_PR_REPLACE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PR_APPEND_2=${$(sed -n 's/^Z_PR_APPEND_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-0}
-Z_PR_RUN_TEST_2=$(sed -n 's/^Z_PR_RUN_TEST_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_GHA_INTERVAL_2=${$(sed -n 's/^Z_GHA_INTERVAL_2=\([^ ]*\)/\1/p' $PUMP_CONFIG):-10}
-Z_COMMIT_ADD_2=$(sed -n 's/^Z_COMMIT_ADD_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_DEFAULT_BRANCH_2=$(sed -n 's/^Z_DEFAULT_BRANCH_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_GHA_WORKFLOW_2=$(sed -n 's/^Z_GHA_WORKFLOW_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PUSH_AFTER_REFIX_2=$(sed -n 's/^Z_PUSH_AFTER_REFIX_2=\([^ ]*\)/\1/p' $PUMP_CONFIG)
+Z_PROJECT_SHORT_NAME_2=$(sed -n 's/^Z_PROJECT_SHORT_NAME_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PROJECT_REPO_2=$(sed -n 's/^Z_PROJECT_REPO_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PACKAGE_MANAGER_2=${$(sed -n 's/^Z_PACKAGE_MANAGER_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-npm};
+Z_CODE_EDITOR_2=${$(sed -n 's/^Z_CODE_EDITOR_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-code}
+Z_CLONE_2=$(sed -n 's/^Z_CLONE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_SETUP_2=$(sed -n 's/^Z_SETUP_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_RUN_2=${$(sed -n 's/^Z_RUN_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")dev}
+Z_RUN_STAGE_2=${$(sed -n 's/^Z_RUN_STAGE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")stage}
+Z_RUN_PROD_2=${$(sed -n 's/^Z_RUN_PROD_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")prod}
+Z_PRO_2=$(sed -n 's/^Z_PRO_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_TEST_2=${$(sed -n 's/^Z_TEST_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test}
+Z_COV_2=${$(sed -n 's/^Z_COV_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:coverage}
+Z_TEST_WATCH_2=${$(sed -n 's/^Z_TEST_WATCH_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:watch}
+Z_E2E_2=${$(sed -n 's/^Z_E2E_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:e2e}
+Z_E2EUI_2=${$(sed -n 's/^Z_E2EUI_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
+Z_PR_TEMPLATE_2=$(sed -n 's/^Z_PR_TEMPLATE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PR_REPLACE_2=$(sed -n 's/^Z_PR_REPLACE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PR_APPEND_2=${$(sed -n 's/^Z_PR_APPEND_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
+Z_PR_RUN_TEST_2=$(sed -n 's/^Z_PR_RUN_TEST_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_GHA_INTERVAL_2=${$(sed -n 's/^Z_GHA_INTERVAL_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-10}
+Z_COMMIT_ADD_2=$(sed -n 's/^Z_COMMIT_ADD_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_DEFAULT_BRANCH_2=$(sed -n 's/^Z_DEFAULT_BRANCH_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_GHA_WORKFLOW_2=$(sed -n 's/^Z_GHA_WORKFLOW_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PUSH_AFTER_REFIX_2=$(sed -n 's/^Z_PUSH_AFTER_REFIX_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 
 # project 3 ========================================================================
 Z_PROJECT_FOLDER_3=""
-Z_PROJECT_FOLDER_3_=$(sed -n 's/^Z_PROJECT_FOLDER_3=\([^ ]*\)/\1/p' "$PUMP_CONFIG"); Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_/#\~/$HOME}"
+Z_PROJECT_FOLDER_3_=$(sed -n 's/^Z_PROJECT_FOLDER_3=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE"); Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_/#\~/$HOME}"
 if [[ -n "$Z_PROJECT_FOLDER_3_" ]]; then
   Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_%/}"
   Z_PROJECT_FOLDER_3=$(realpath "$Z_PROJECT_FOLDER_3_" 2> /dev/null)
 fi
-Z_PROJECT_SHORT_NAME_3=$(sed -n 's/^Z_PROJECT_SHORT_NAME_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PROJECT_REPO_3=$(sed -n 's/^Z_PROJECT_REPO_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PACKAGE_MANAGER_3=${$(sed -n 's/^Z_PACKAGE_MANAGER_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-npm};
-Z_CODE_EDITOR_3=${$(sed -n 's/^Z_CODE_EDITOR_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-code}
-Z_CLONE_3=$(sed -n 's/^Z_CLONE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_SETUP_3=$(sed -n 's/^Z_SETUP_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_RUN_3=${$(sed -n 's/^Z_RUN_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")dev}
-Z_RUN_STAGE_3=${$(sed -n 's/^Z_RUN_STAGE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")stage}
-Z_RUN_PROD_3=${$(sed -n 's/^Z_RUN_PROD_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")prod}
-Z_PRO_3=$(sed -n 's/^Z_PRO_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_TEST_3=${$(sed -n 's/^Z_TEST_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test}
-Z_COV_3=${$(sed -n 's/^Z_COV_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:coverage}
-Z_TEST_WATCH_3=${$(sed -n 's/^Z_TEST_WATCH_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:watch}
-Z_E2E_3=${$(sed -n 's/^Z_E2E_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:e2e}
-Z_E2EUI_3=${$(sed -n 's/^Z_E2EUI_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
-Z_PR_TEMPLATE_3=$(sed -n 's/^Z_PR_TEMPLATE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PR_REPLACE_3=$(sed -n 's/^Z_PR_REPLACE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PR_APPEND_3=${$(sed -n 's/^Z_PR_APPEND_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-0}
-Z_PR_RUN_TEST_3=$(sed -n 's/^Z_PR_RUN_TEST_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_GHA_INTERVAL_3=${$(sed -n 's/^Z_GHA_INTERVAL_3=\([^ ]*\)/\1/p' $PUMP_CONFIG):-10}
-Z_COMMIT_ADD_3=$(sed -n 's/^Z_COMMIT_ADD_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_DEFAULT_BRANCH_3=$(sed -n 's/^Z_DEFAULT_BRANCH_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_GHA_WORKFLOW_3=$(sed -n 's/^Z_GHA_WORKFLOW_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
-Z_PUSH_AFTER_REFIX_3=$(sed -n 's/^Z_PUSH_AFTER_REFIX_3=\([^ ]*\)/\1/p' $PUMP_CONFIG)
+Z_PROJECT_SHORT_NAME_3=$(sed -n 's/^Z_PROJECT_SHORT_NAME_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PROJECT_REPO_3=$(sed -n 's/^Z_PROJECT_REPO_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PACKAGE_MANAGER_3=${$(sed -n 's/^Z_PACKAGE_MANAGER_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-npm};
+Z_CODE_EDITOR_3=${$(sed -n 's/^Z_CODE_EDITOR_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-code}
+Z_CLONE_3=$(sed -n 's/^Z_CLONE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_SETUP_3=$(sed -n 's/^Z_SETUP_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_RUN_3=${$(sed -n 's/^Z_RUN_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")dev}
+Z_RUN_STAGE_3=${$(sed -n 's/^Z_RUN_STAGE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")stage}
+Z_RUN_PROD_3=${$(sed -n 's/^Z_RUN_PROD_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")prod}
+Z_PRO_3=$(sed -n 's/^Z_PRO_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_TEST_3=${$(sed -n 's/^Z_TEST_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test}
+Z_COV_3=${$(sed -n 's/^Z_COV_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:coverage}
+Z_TEST_WATCH_3=${$(sed -n 's/^Z_TEST_WATCH_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:watch}
+Z_E2E_3=${$(sed -n 's/^Z_E2E_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:e2e}
+Z_E2EUI_3=${$(sed -n 's/^Z_E2EUI_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
+Z_PR_TEMPLATE_3=$(sed -n 's/^Z_PR_TEMPLATE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PR_REPLACE_3=$(sed -n 's/^Z_PR_REPLACE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PR_APPEND_3=${$(sed -n 's/^Z_PR_APPEND_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
+Z_PR_RUN_TEST_3=$(sed -n 's/^Z_PR_RUN_TEST_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_GHA_INTERVAL_3=${$(sed -n 's/^Z_GHA_INTERVAL_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-10}
+Z_COMMIT_ADD_3=$(sed -n 's/^Z_COMMIT_ADD_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_DEFAULT_BRANCH_3=$(sed -n 's/^Z_DEFAULT_BRANCH_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_GHA_WORKFLOW_3=$(sed -n 's/^Z_GHA_WORKFLOW_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PUSH_AFTER_REFIX_3=$(sed -n 's/^Z_PUSH_AFTER_REFIX_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 
 Z_PROJECT_FOLDER=""
 Z_PROJECT_SHORT_NAME=""
@@ -366,10 +387,10 @@ update_config_() {
 
   if [[ "$(uname)" == "Darwin" ]]; then
     # macOS (BSD sed) requires correct handling of patterns
-    sed -i '' "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG"
+    sed -i '' "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG_FILE"
   else
     # Linux (GNU sed)
-    sed -i "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG"
+    sed -i "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG_FILE"
   fi
 
   if [[ $? -eq 0 ]]; then
@@ -406,6 +427,8 @@ save_input_path_() {
 }
 
 check_proj_name_valid_() {
+  name=${1:-$Z_PROJECT_SHORT_NAME}
+
   invalid_proj_names=(
     "yarn" "npm" "pnpm" "bun"
     "pro" "rev" "revs" "clone" "setup" "run" "test" "testw" "covc" "cov" "e2e" "e2eui" "recommit" "refix"
@@ -413,10 +436,10 @@ check_proj_name_valid_() {
     "tsc" "start" "sbb" "sb" "renb" "co" "reseta" "clean" "delb" "prune" "discard" "restore"
     "st" "gconf" "fetch" "pull" "glog" "gll" "glr" "reset" "reset1" "reset2" "reset3" "reset4" "reset5" "reset6"
     "dtag" "tag" "tags" "pop" "stash" "stashes" "rebase" "merge" "rc" "conti" "mc" "chp" "chc" "abort"
-    "cl" "del" "help" "kill" "ll" "nver" "nlist" "path" "refresh" "upgrade"
+    "cl" "del" "help" "kill" "ll" "nver" "nlist" "path" "refresh" "pwd" "empty" "upgrade" "skip" "-" "." ".."
   )
 
-  if [[ " ${invalid_proj_names[@]} " =~ " $1 " ]]; then
+  if [[ " ${invalid_proj_names[@]} " =~ " $name " ]]; then
     echo " project name is invalid, choose another one"
     return 1
   fi
@@ -444,12 +467,12 @@ save_project_1_() {
   fi
 
   if [[ -n "$typed_folder_1" || -n "$typed_name_1" ]]; then
-    if [[ ! -f "$PUMP_CONFIG" ]]; then
-      echo "$red_cor fatal: config file '$PUMP_CONFIG' does not exist, re-install pump-my-shell $clear_cor"
+    if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+      echo "$red_cor fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell $clear_cor"
       return 1
     fi
 
-    cp -R "$PUMP_CONFIG" "$PUMP_CONFIG.$PUMP_VERSION.X.bak"
+    cp -R "$PUMP_CONFIG_FILE" "$PUMP_CONFIG_FILE.$PUMP_VERSION.X.bak"
 
     # Update each key with its respective environment variable value
     update_config_ "Z_PROJECT_FOLDER_1" "$Z_PROJECT_FOLDER_1"
@@ -482,12 +505,12 @@ save_project_2_() {
   fi
 
   if [[ -n "$typed_folder_2" || -n "$typed_name_2" ]]; then
-    if [[ ! -f "$PUMP_CONFIG" ]]; then
-      echo "$red_cor fatal: config file '$PUMP_CONFIG' does not exist, re-install pump-my-shell $clear_cor"
+    if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+      echo "$red_cor fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell $clear_cor"
       return 1
     fi
 
-    cp -R "$PUMP_CONFIG" "$PUMP_CONFIG.$PUMP_VERSION.X.bak"
+    cp -R "$PUMP_CONFIG_FILE" "$PUMP_CONFIG_FILE.$PUMP_VERSION.X.bak"
 
     # Update each key with its respective environment variable value
     update_config_ "Z_PROJECT_FOLDER_2" "$Z_PROJECT_FOLDER_2"
@@ -520,12 +543,12 @@ save_project_3_() {
   fi
 
   if [[ -n "$typed_folder_3" || -n "$typed_name_3" ]]; then
-    if [[ ! -f "$PUMP_CONFIG" ]]; then
-      echo "$red_cor fatal: config file '$PUMP_CONFIG' does not exist, re-install pump-my-shell $clear_cor"
+    if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+      echo "$red_cor fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell $clear_cor"
       return 1
     fi
 
-    cp -R "$PUMP_CONFIG" "$PUMP_CONFIG.$PUMP_VERSION.X.bak"
+    cp -R "$PUMP_CONFIG_FILE" "$PUMP_CONFIG_FILE.$PUMP_VERSION.X.bak"
 
     # Update each key with its respective environment variable value
     update_config_ "Z_PROJECT_FOLDER_3" "$Z_PROJECT_FOLDER_3"
@@ -633,7 +656,7 @@ help() {
     save_project_1_
 
     if [[ -z "$Z_PROJECT_FOLDER_1" || -z "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo " configure$solid_yellow_cor $PUMP_CONFIG\e[0m as shown in the example below:"
+      echo " configure$solid_yellow_cor $PUMP_CONFIG_FILE\e[0m as shown in the example below:"
       echo ""
       echo " Z_PROJECT_FOLDER_1=${Z_PROJECT_FOLDER_1:-/Users/fab1o/Developer/pump-my-shell}"
       echo " Z_PROJECT_SHORT_NAME_1=${Z_PROJECT_SHORT_NAME_1:-pump}"
@@ -917,11 +940,11 @@ check_prj_folder_1_() {
     if [[ -n "$2" ]]; then
       Z_PROJECT_FOLDER_1_="$2"
     else
-      if [[ ! -f "$PUMP_CONFIG" ]]; then
-        echo "$red_cor fatal: config file '$PUMP_CONFIG' does not exist, re-install pump-my-shell $clear_cor"
+      if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+        echo "$red_cor fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell $clear_cor"
         return 1
       fi
-      Z_PROJECT_FOLDER_1_=$(sed -n 's/^Z_PROJECT_FOLDER_1=\([^ ]*\)/\1/p' "$PUMP_CONFIG");
+      Z_PROJECT_FOLDER_1_=$(sed -n 's/^Z_PROJECT_FOLDER_1=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE");
       Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_/#\~/$HOME}"
     fi
     if [[ -z "$Z_PROJECT_FOLDER_1_" ]]; then
@@ -959,11 +982,11 @@ check_prj_folder_2_() {
     if [[ -n "$2" ]]; then
       Z_PROJECT_FOLDER_2_="$2"
     else
-      if [[ ! -f "$PUMP_CONFIG" ]]; then
-        echo "$red_cor fatal: config file '$PUMP_CONFIG' does not exist, re-install pump-my-shell $clear_cor"
+      if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+        echo "$red_cor fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell $clear_cor"
         return 1
       fi
-      Z_PROJECT_FOLDER_2_=$(sed -n 's/^Z_PROJECT_FOLDER_2=\([^ ]*\)/\1/p' "$PUMP_CONFIG");
+      Z_PROJECT_FOLDER_2_=$(sed -n 's/^Z_PROJECT_FOLDER_2=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE");
       Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_/#\~/$HOME}"
     fi
     if [[ -z "$Z_PROJECT_FOLDER_2_" ]]; then
@@ -1001,11 +1024,11 @@ check_prj_folder_3_() {
     if [[ -n "$2" ]]; then
       Z_PROJECT_FOLDER_3_="$2"
     else
-      if [[ ! -f "$PUMP_CONFIG" ]]; then
-        echo "$red_cor fatal: config file '$PUMP_CONFIG' does not exist, re-install pump-my-shell $clear_cor"
+      if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+        echo "$red_cor fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell $clear_cor"
         return 1
       fi
-      Z_PROJECT_FOLDER_3_=$(sed -n 's/^Z_PROJECT_FOLDER_3=\([^ ]*\)/\1/p' "$PUMP_CONFIG");
+      Z_PROJECT_FOLDER_3_=$(sed -n 's/^Z_PROJECT_FOLDER_3=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE");
       Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_/#\~/$HOME}"
     fi
     if [[ -z "$Z_PROJECT_FOLDER_3_" ]]; then
@@ -1084,8 +1107,11 @@ check_prj_3_() {
   return $ERROR_PROJ_3;
 }
 
-if [[ ! -f "$PUMP_PRO" && -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
-  echo "$Z_PROJECT_SHORT_NAME_1" > "$PUMP_PRO";
+if [[ ! -f "$PUMP_PRO_FILE" && -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
+  check_proj_name_valid_ "$Z_PROJECT_SHORT_NAME_1"
+  if [[ $? -eq 0 ]]; then
+    echo "$Z_PROJECT_SHORT_NAME_1" > "$PUMP_PRO_FILE";
+  fi
 fi
 
 # check what project is set
@@ -1150,6 +1176,7 @@ pro() {
       echo " your project is set to:$solid_blue_cor $Z_PROJECT_SHORT_NAME\e[0m with$solid_magenta_cor $Z_PACKAGE_MANAGER $clear_cor"
       echo ""
     else
+      # user has no projects in config
       echo " no project set, type$yellow_cor help$clear_cor to set project"
       return 1;
     fi
@@ -1295,7 +1322,7 @@ pro() {
     return 0;
   fi
 
-  echo "$Z_PROJECT_SHORT_NAME" > "$PUMP_PRO"
+  echo "$Z_PROJECT_SHORT_NAME" > "$PUMP_PRO_FILE"
 
   if [[ "$2" != "skip" ]]; then
     which_pro;
@@ -1320,12 +1347,23 @@ pro() {
 
 # auto pro ===============================================================
 pro "pwd" "skip"
+# get stored project and set project but do not change current directory
 if [ $? -ne 0 ]; then
-  # get stored project and set project but do not change current directory
-  Z_PROJECT_USER_CONFIG="$(head -n 1 "$PUMP_PRO" 2>/dev/null)";
+  # pump_pro_file_value="$(head -n 1 "$PUMP_PRO_FILE" 2>/dev/null)";
+  [[ -f "$PUMP_PRO_FILE" ]] && pump_pro_file_value=$(<"$PUMP_PRO_FILE")
 
-  if [[ "$Z_PROJECT_USER_CONFIG" == "$Z_PROJECT_SHORT_NAME_1" || "$Z_PROJECT_USER_CONFIG" == "$Z_PROJECT_SHORT_NAME_2" || "$Z_PROJECT_USER_CONFIG" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    pro "$Z_PROJECT_USER_CONFIG" "skip"
+  if [[ -n "$pump_pro_file_value" ]]; then
+    check_proj_name_valid_ "$pump_pro_file_value"
+    if [ $? -ne 0 ]; then
+      rm -rf "$PUMP_PRO_FILE" 2>/dev/null
+      pump_pro_file_value=""
+    fi
+  fi
+
+  # pump_pro_file_value will always be filled unless user has no projects in config
+  if [[ "$pump_pro_file_value" == "$Z_PROJECT_SHORT_NAME_1" || "$pump_pro_file_value" == "$Z_PROJECT_SHORT_NAME_2" || "$pump_pro_file_value" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+    # if user has no projects in config, it will be empty
+    pro "$pump_pro_file_value" "skip"
   else
     # if there's nothing set in config, choose the 1st one available
     if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
@@ -1455,11 +1493,11 @@ refix() {
   git add .
   git commit -m "$last_commit_msg"
 
-  if [[ $Z_PUSH_AFTER_REFIX -eq 0 ]]; then
-      return 0;
+  if [[ -n "$Z_PUSH_AFTER_REFIX" && $Z_PUSH_AFTER_REFIX -eq 0 ]]; then
+    return 0;
   fi
 
-  if (confirm_from_ "fix done, push now?"); then
+  if confirm_from_ "fix done, push now?"; then
     if confirm_from_ "save this preference and don't ask again?"; then
       if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
         update_config_ "Z_PUSH_AFTER_REFIX_1" 1
@@ -1555,7 +1593,7 @@ get_default_branch_folder_() {
   fi
 }
 
-# Project aliases =========================================================
+# Project functions =========================================================
 if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
   $Z_PROJECT_SHORT_NAME_1() {
     check_pkg_silent_ "$Z_PROJECT_FOLDER_1"
@@ -1578,10 +1616,13 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
     branch=""
 
     if [ $single_mode -eq 0 ]; then # true, is single mode
-      branch="$1"
+      branch=${1:-$PUMP_WORKING_BRANCH_1}
     else
       if [[ -z "$1" ]]; then
-        folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_1")
+        folder="$PUMP_WORKING_BRANCH_1"
+        if [[ -z "$folder" || ! -d "$folder" ]]; then
+          folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_1")
+        fi
       else
         folder="$1"
       fi
@@ -1596,7 +1637,7 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
     fi
     
     if [[ -n "$branch" ]]; then
-      co $branch
+      co -e $branch
     fi
   }
 fi
@@ -1623,10 +1664,13 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
     branch=""
 
     if [ $single_mode -eq 0 ]; then # true, is single mode
-      branch="$1"
+      branch=${1:-$PUMP_WORKING_BRANCH_2}
     else
       if [[ -z "$1" ]]; then
-        folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_2")
+        folder="$PUMP_WORKING_BRANCH_2"
+        if [[ -z "$folder" || ! -d "$folder" ]]; then
+          folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_2")
+        fi
       else
         folder="$1"
       fi
@@ -1641,7 +1685,7 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
     fi
     
     if [[ -n "$branch" ]]; then
-      co $branch
+      co -e $branch
     fi
   }
 fi
@@ -1668,10 +1712,13 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
     branch=""
 
     if [ $single_mode -eq 0 ]; then # true, is single mode
-      branch="$1"
+      branch=${1:-$PUMP_WORKING_BRANCH_3}
     else
       if [[ -z "$1" ]]; then
-        folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_3")
+        folder="$PUMP_WORKING_BRANCH_3"
+        if [[ -z "$folder" || ! -d "$folder" ]]; then
+          folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_3")
+        fi
       else
         folder="$1"
       fi
@@ -1686,7 +1733,7 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
     fi
     
     if [[ -n "$branch" ]]; then
-      co $branch
+      co -e $branch
     fi
   }
 fi
@@ -3067,6 +3114,17 @@ clone() {
         git config init.defaultBranch "$branch_to_clone"
         git checkout "$branch_to_clone" --quiet
 
+        if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+          PUMP_WORKING_BRANCH_1=$(git branch --show-current)
+          echo "$PUMP_WORKING_BRANCH_1" > "$PUMP_WORKING_BRANCH_FILE_1";
+        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+          PUMP_WORKING_BRANCH_2=$(git branch --show-current)
+          echo "$PUMP_WORKING_BRANCH_2" > "$PUMP_WORKING_BRANCH_FILE_2";
+        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+          PUMP_WORKING_BRANCH_3=$(git branch --show-current)
+          echo "$PUMP_WORKING_BRANCH_3" > "$PUMP_WORKING_BRANCH_FILE_3";
+        fi
+
         refresh >/dev/null 2>&1
 
         if command -v glow &> /dev/null; then
@@ -3155,7 +3213,17 @@ clone() {
     else
       git checkout "$branch_to_clone" --quiet
     fi
-    
+  fi
+
+  if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+    PUMP_WORKING_BRANCH_1=$(git branch --show-current)
+    echo "$PUMP_WORKING_BRANCH_1" > "$PUMP_WORKING_BRANCH_FILE_1";
+  elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+    PUMP_WORKING_BRANCH_2=$(git branch --show-current)
+    echo "$PUMP_WORKING_BRANCH_2" > "$PUMP_WORKING_BRANCH_FILE_2";
+  elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+    PUMP_WORKING_BRANCH_3=$(git branch --show-current)
+    echo "$PUMP_WORKING_BRANCH_3" > "$PUMP_WORKING_BRANCH_FILE_3";
   fi
 
   if command -v glow &> /dev/null; then
@@ -3400,11 +3468,11 @@ recommit() {
 
   git commit -m "$last_commit_msg"
 
-  if [[ $Z_PUSH_AFTER_REFIX -eq 0 ]]; then
-      return 0;
+  if [[ -n "$Z_PUSH_AFTER_REFIX" && $Z_PUSH_AFTER_REFIX -eq 0 ]]; then
+    return 0;
   fi
 
-  if (confirm_from_ "re-commit done, push now?"); then
+  if confirm_from_ "re-commit done, push now?"; then
     if confirm_from_ "save this preference and don't ask again?"; then
       if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
         update_config_ "Z_PUSH_AFTER_REFIX_1" 1
@@ -4366,7 +4434,7 @@ co() {
 
   branch="$1"
 
-  # co branch BASE_BRANCH
+  # co branch BASE_BRANCH (creating branch)
   choices=$(git branch -a --list --format="%(refname:strip=2)" | grep -i "$2" | sed 's/^[* ]*//g' | sed -e 's/HEAD//' | sed -e 's/remotes\///' | sed -e 's/HEAD -> origin\///' | sed -e 's/origin\///' | sort -fu)
   if [[ $? -ne 0 || -z "$choices" ]]; then
     echo " did not match any branch known to git: $2"
@@ -4389,7 +4457,29 @@ co() {
   git switch $branch
   if [ $? -ne 0 ]; then return 1; fi
 
-  PUMP_PAST_BRANCH="$pump_past_branch"
+  PUMP_PAST_BRANCH="$pump_past_branch" # svae this for back() function
+
+  if [[ -n "$Z_PROJECT_FOLDER" && -d "$Z_PROJECT_FOLDER" ]]; then
+    check_git_silent_ "$Z_PROJECT_FOLDER";
+    if [ $? -eq 0 ]; then
+      if ! confirm_from_ "save this as working branch?"; then
+        return 0;
+      fi
+    fi
+  fi
+
+  if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
+    if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+      PUMP_WORKING_BRANCH_1=$(git branch --show-current)
+      echo "$PUMP_WORKING_BRANCH_1" > "$PUMP_WORKING_BRANCH_FILE_1";
+    elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+      PUMP_WORKING_BRANCH_2=$(git branch --show-current)
+      echo "$PUMP_WORKING_BRANCH_2" > "$PUMP_WORKING_BRANCH_FILE_2";
+    elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+      PUMP_WORKING_BRANCH_3=$(git branch --show-current)
+      echo "$PUMP_WORKING_BRANCH_3" > "$PUMP_WORKING_BRANCH_FILE_3";
+    fi
+  fi
 }
 
 back() {
