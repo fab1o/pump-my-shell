@@ -133,11 +133,7 @@ Z_PR_REPLACE_3=
 
 # optional
 # default: 0
-<<<<<<< HEAD
-# 1 to append commit messages after Z_PR_REPLACE or 0 to replace it.
-=======
 # Set to 1 to append commit messages after Z_PR_REPLACE or 0 to replace it.
->>>>>>> a88bad4 (0.0.1)
 Z_PR_APPEND_1=0
 Z_PR_APPEND_2=0
 Z_PR_APPEND_3=0

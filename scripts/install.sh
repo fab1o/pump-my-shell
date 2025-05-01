@@ -7,7 +7,7 @@ set -e
 #echo " ⬇️ downloading latest release..."
 echo " installing pump-my-shell..."
 
-if ! command -v zsh &> /dev/null; then
+if ! command -v zsh &>/dev/null; then
   echo " Oh My Zsh is not installed and required to continue."
   printf " install Zsh: \033[94mhttps://ohmyz.sh\033[0m"
   echo ""
@@ -31,7 +31,7 @@ if ! command -v zsh &> /dev/null; then
   # fi
 fi
 
-if ! command -v gum &> /dev/null; then
+if ! command -v gum &>/dev/null; then
   echo " pump-my-shell recommends gum for better user experience"
   printf " install gum: \033[94mhttps://github.com/charmbracelet/gum\033[0m"
   echo ""
@@ -51,9 +51,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-_pwd="$(pwd)"
-
-rm -rf temp >/dev/null 2>&1
+rm -rf temp >/dev/null &>/dev/null
 mkdir -p temp
 unzip -q -o pump-my-shell.zip -d temp
 if [ $? -ne 0 ]; then
@@ -64,10 +62,10 @@ if [ $? -ne 0 ]; then
 fi
 #echo " ✅ downloaded pump-my-shell version $TAG"
 
-rm pump-my-shell.zip >/dev/null 2>&1
+rm pump-my-shell.zip >/dev/null &>/dev/null
 
-if command -v zsh &> /dev/null; then
-  cd "temp/pump-my-shell-$TAG"
+if command -v zsh &>/dev/null; then
+  pushd "temp/pump-my-shell-$TAG" &>/dev/null
   if [ $? -ne 0 ]; then
     rm -rf temp >/dev/null 2>&1
     echo " failed to change directory to temp/pump-my-shell-$TAG, try running: "
@@ -79,13 +77,13 @@ if command -v zsh &> /dev/null; then
   zsh ./scripts/edit_zshrc.zsh
   bash ./scripts/check_zshrc.sh
 
-  cd "$_pwd"
+  popd &>/dev/null
 else
   echo " no Zsh found, install Oh My Zsh, then run the script again to finish the installation"
   echo " \033[94m https://ohmyz.sh/\033[0m"
 fi
 
-rm -rf temp >/dev/null 2>&1
+rm -rf temp >/dev/null &>/dev/null
 echo ""
 printf " then type and run\033[93m help \033[0m"
 echo ""
