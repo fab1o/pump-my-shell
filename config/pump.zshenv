@@ -152,10 +152,10 @@ Z_COMMIT_ADD_2=
 Z_COMMIT_ADD_3=
 
 # optional
-# Set to 1 to automatically push on refix and recommit, 0 to not push
-Z_PUSH_AFTER_REFIX_1=
-Z_PUSH_AFTER_REFIX_2=
-Z_PUSH_AFTER_REFIX_3=
+# Set to 1 to automatically push on refix, 0 to not push
+Z_PUSH_ON_REFIX_1=
+Z_PUSH_ON_REFIX_1=
+Z_PUSH_ON_REFIX_1=
 
 # optional
 # Default branch to use for cloned branches in multiple mode

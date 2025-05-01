@@ -9,7 +9,7 @@ An **Oh My Zsh** plugin with a configurable set of aliases and functions to **su
 ## 🚀 Installation & Upgrade
 
 ```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/install.sh)"
+/bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/install.sh)"
 ```
 1. Run the command above to install or upgrade `pump-my-shell`
 
@@ -32,7 +32,7 @@ An **Oh My Zsh** plugin with a configurable set of aliases and functions to **su
 Run this to install all required and recommended dependencies:
 
 ```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/install_deps.sh)"
+/bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/install_deps.sh)"
 ```
 
 ### Dependencies:

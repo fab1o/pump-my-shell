@@ -192,7 +192,7 @@ update_() {
 
     echo " if you encounter an error after installation, don't worry — simply restart your terminal"
 
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
+    /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
     return 1;
   else
     if [[ -n "$1" ]]; then
@@ -258,7 +258,7 @@ Z_GHA_INTERVAL_1=${$(sed -n 's/^Z_GHA_INTERVAL_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FI
 Z_COMMIT_ADD_1=$(sed -n 's/^Z_COMMIT_ADD_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 Z_DEFAULT_BRANCH_1=$(sed -n 's/^Z_DEFAULT_BRANCH_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 Z_GHA_WORKFLOW_1=$(sed -n 's/^Z_GHA_WORKFLOW_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PUSH_AFTER_REFIX_1=$(sed -n 's/^Z_PUSH_AFTER_REFIX_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PUSH_ON_REFIX_1=$(sed -n 's/^Z_PUSH_ON_REFIX_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 
 # project 2 ========================================================================
 Z_PROJECT_FOLDER_2=""
@@ -290,7 +290,7 @@ Z_GHA_INTERVAL_2=${$(sed -n 's/^Z_GHA_INTERVAL_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FI
 Z_COMMIT_ADD_2=$(sed -n 's/^Z_COMMIT_ADD_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 Z_DEFAULT_BRANCH_2=$(sed -n 's/^Z_DEFAULT_BRANCH_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 Z_GHA_WORKFLOW_2=$(sed -n 's/^Z_GHA_WORKFLOW_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PUSH_AFTER_REFIX_2=$(sed -n 's/^Z_PUSH_AFTER_REFIX_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PUSH_ON_REFIX_2=$(sed -n 's/^Z_PUSH_ON_REFIX_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 
 # project 3 ========================================================================
 Z_PROJECT_FOLDER_3=""
@@ -322,7 +322,7 @@ Z_GHA_INTERVAL_3=${$(sed -n 's/^Z_GHA_INTERVAL_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FI
 Z_COMMIT_ADD_3=$(sed -n 's/^Z_COMMIT_ADD_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 Z_DEFAULT_BRANCH_3=$(sed -n 's/^Z_DEFAULT_BRANCH_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 Z_GHA_WORKFLOW_3=$(sed -n 's/^Z_GHA_WORKFLOW_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PUSH_AFTER_REFIX_3=$(sed -n 's/^Z_PUSH_AFTER_REFIX_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
+Z_PUSH_ON_REFIX_3=$(sed -n 's/^Z_PUSH_ON_REFIX_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
 
 Z_PROJECT_FOLDER=""
 Z_PROJECT_SHORT_NAME=""
@@ -348,7 +348,7 @@ Z_GHA_INTERVAL=""
 Z_COMMIT_ADD=""
 Z_DEFAULT_BRANCH=""
 Z_GHA_WORKFLOW=""
-Z_PUSH_AFTER_REFIX=""
+Z_PUSH_ON_REFIX=""
 
 PUMP_PAST_BRANCH=""
 
@@ -426,11 +426,11 @@ check_proj_name_valid_() {
   invalid_proj_names=(
     "yarn" "npm" "pnpm" "bun"
     "pro" "rev" "revs" "clone" "setup" "run" "test" "testw" "covc" "cov" "e2e" "e2eui" "recommit" "refix"
-    "rdev" "dev" "stage" "prod" "gha" "pr" "push" "pushf" "add" "commit" "build" "i" "ig" "deploy" "fix" "format" "lint" "back"
+    "rdev" "dev" "stage" "prod" "gha" "pr" "push" "repush" "pushf" "add" "commit" "build" "i" "ig" "deploy" "fix" "format" "lint" "back"
     "tsc" "start" "sbb" "sb" "renb" "co" "reseta" "clean" "delb" "prune" "discard" "restore"
     "st" "gconf" "fetch" "pull" "glog" "gll" "glr" "reset" "reset1" "reset2" "reset3" "reset4" "reset5" "reset6"
     "dtag" "tag" "tags" "pop" "stash" "stashes" "rebase" "merge" "rc" "conti" "mc" "chp" "chc" "abort"
-    "cl" "del" "help" "kill" "ll" "nver" "nlist" "path" "refresh" "pwd" "empty" "upgrade" "skip" "-" "." ".."
+    "cl" "del" "help" "kill" "ll" "nver" "nlist" "path" "refresh" "pwd" "empty" "upgrade" "-q" "quiet" "skip" "-" "." ".."
   )
 
   if [[ " ${invalid_proj_names[@]} " =~ " $name " ]]; then
@@ -640,7 +640,7 @@ help() {
   echo ""
   echo "  to learn more, visit:$blue_cor https://github.com/fab1o/pump-my-shell/wiki $clear_cor"
 
-  check_prj_1_ "skip"
+  check_prj_1_ -q
   if [[ $ERROR_PROJ_1 -ne 0 ]]; then
     echo ""
     if [[ -z "$Z_PROJECT_FOLDER_1_" ]]; then
@@ -883,8 +883,9 @@ help() {
   help_line_ "multi-step tasks" $pink_cor
   echo ""
   echo " $pink_cor covc $clear_cor\t\t = compare test coverage with another branch"
-  echo " $pink_cor refix $clear_cor\t = reset last commit + run fix + re-commit"
-  echo " $pink_cor recommit $clear_cor\t = reset last commit + re-commit changes"
+  echo " $pink_cor refix $clear_cor\t = reset last commit then run fix then re-commit"
+  echo " $pink_cor recommit $clear_cor\t = reset last commit then re-commit all changes"
+  echo " $pink_cor repush $clear_cor\t = reset last commit then re-push all changes"
   echo " $pink_cor rev $clear_cor\t\t = select branch to review"
   echo ""
 }
@@ -904,7 +905,7 @@ check_prj_folder_1_() {
       Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_/#\~/$HOME}"
     fi
     if [[ -z "$Z_PROJECT_FOLDER_1_" ]]; then
-      if [[ "$1" != "skip" ]]; then
+      if [[ "$1" != "-q" ]]; then
         echo "$red_cor error: project folder not found $clear_cor";
       fi
       ERROR_PROJ_1=1
@@ -947,7 +948,7 @@ check_prj_folder_2_() {
       Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_/#\~/$HOME}"
     fi
     if [[ -z "$Z_PROJECT_FOLDER_2_" ]]; then
-      if [[ "$1" != "skip" ]]; then
+      if [[ "$1" != "-q" ]]; then
         echo "$red_cor error: project folder not found $clear_cor";
       fi
       ERROR_PROJ_2=1
@@ -990,7 +991,7 @@ check_prj_folder_3_() {
       Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_/#\~/$HOME}"
     fi
     if [[ -z "$Z_PROJECT_FOLDER_3_" ]]; then
-      if [[ "$1" != "skip" ]]; then
+      if [[ "$1" != "-q" ]]; then
         echo "$red_cor error: project folder not found $clear_cor";
       fi
       ERROR_PROJ_3=1
@@ -1025,7 +1026,7 @@ check_prj_1_() {
   ERROR_PROJ_1=$?
 
   if [[ -z $Z_PROJECT_SHORT_NAME_1 ]]; then
-    if [[ "$1" != "skip" ]]; then
+    if [[ "$1" != "-q" ]]; then
       echo "$red_cor error: not found Z_PROJECT_SHORT_NAME_1= $clear_cor";
     fi
     ERROR_PROJ_1=1
@@ -1041,7 +1042,7 @@ check_prj_2_() {
   ERROR_PROJ_2=$?
 
   if [[ -z $Z_PROJECT_SHORT_NAME_2 ]]; then
-    if [[ "$1" != "skip" ]]; then
+    if [[ "$1" != "-q" ]]; then
       echo "$red_cor error: not found Z_PROJECT_SHORT_NAME_2= $clear_cor";
     fi
     ERROR_PROJ_2=1
@@ -1057,7 +1058,7 @@ check_prj_3_() {
   ERROR_PROJ_3=$?
 
   if [[ -z $Z_PROJECT_SHORT_NAME_3 ]]; then
-    if [[ "$1" != "skip" ]]; then
+    if [[ "$1" != "-q" ]]; then
       echo "$red_cor error: not found Z_PROJECT_SHORT_NAME_3= $clear_cor";
     fi
     ERROR_PROJ_3=1
@@ -1208,7 +1209,7 @@ pro() {
     Z_COMMIT_ADD="$Z_COMMIT_ADD_1"
     Z_DEFAULT_BRANCH="$Z_DEFAULT_BRANCH_1"
     Z_GHA_WORKFLOW="$Z_GHA_WORKFLOW_1"
-    Z_PUSH_AFTER_REFIX="$Z_PUSH_AFTER_REFIX_1"
+    Z_PUSH_ON_REFIX="$Z_PUSH_ON_REFIX_1"
 
   elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
     check_prj_2_;
@@ -1241,7 +1242,7 @@ pro() {
     Z_COMMIT_ADD="$Z_COMMIT_ADD_2"
     Z_DEFAULT_BRANCH="$Z_DEFAULT_BRANCH_2"
     Z_GHA_WORKFLOW="$Z_GHA_WORKFLOW_2"
-    Z_PUSH_AFTER_REFIX="$Z_PUSH_AFTER_REFIX_2"
+    Z_PUSH_ON_REFIX="$Z_PUSH_ON_REFIX_2"
 
   elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
     check_prj_3_;
@@ -1274,7 +1275,7 @@ pro() {
     Z_COMMIT_ADD="$Z_COMMIT_ADD_3"
     Z_DEFAULT_BRANCH="$Z_DEFAULT_BRANCH_3"
     Z_GHA_WORKFLOW="$Z_GHA_WORKFLOW_3"
-    Z_PUSH_AFTER_REFIX="$Z_PUSH_AFTER_REFIX_3"
+    Z_PUSH_ON_REFIX="$Z_PUSH_ON_REFIX_3"
 
   else
     which_pro;
@@ -1283,30 +1284,30 @@ pro() {
 
   echo "$Z_PROJECT_SHORT_NAME" > "$PUMP_PRO_FILE"
 
-  if [[ "$2" != "skip" ]]; then
+  if [[ "$2" != "-q" ]]; then
     which_pro;
   fi
 
   if [[ $(PWD) != $Z_PROJECT_FOLDER* ]]; then
-    if [[ "$2" != "skip" ]]; then
+    if [[ "$2" != "-q" ]]; then
       mkdir -p "$Z_PROJECT_FOLDER" &>/dev/null
       pushd "$Z_PROJECT_FOLDER" &>/dev/null
     fi
   fi
 
-  # if [[ -n "$Z_PRO" && "$2" != "skip" ]]; then
+  # if [[ -n "$Z_PRO" && "$2" != "-q" ]]; then
   #   eval $Z_PRO
   # fi
   
   export Z_PROJECT_SHORT_NAME="$Z_PROJECT_SHORT_NAME"
 
-  if [[ "$2" != "skip" ]]; then
+  if [[ "$2" != "-q" ]]; then
     refresh &>/dev/null
   fi
 }
 
 # auto pro ===============================================================
-pro "pwd" "skip"
+pro "pwd" -q
 # get stored project and set project but do not change current directory
 if [ $? -ne 0 ]; then
   # pump_pro_file_value="$(head -n 1 "$PUMP_PRO_FILE" &>/dev/null)";
@@ -1323,15 +1324,15 @@ if [ $? -ne 0 ]; then
   # pump_pro_file_value will always be filled unless user has no projects in config
   if [[ "$pump_pro_file_value" == "$Z_PROJECT_SHORT_NAME_1" || "$pump_pro_file_value" == "$Z_PROJECT_SHORT_NAME_2" || "$pump_pro_file_value" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
     # if user has no projects in config, it will be empty
-    pro "$pump_pro_file_value" "skip"
+    pro "$pump_pro_file_value" -q
   else
     # if there's nothing set in config, choose the 1st one available
     if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      pro "$Z_PROJECT_SHORT_NAME_1" "skip"
+      pro "$Z_PROJECT_SHORT_NAME_1" -q
     elif [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      pro "$Z_PROJECT_SHORT_NAME_2" "skip"
+      pro "$Z_PROJECT_SHORT_NAME_2" -q
     elif [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      pro "$Z_PROJECT_SHORT_NAME_3" "skip"
+      pro "$Z_PROJECT_SHORT_NAME_3" -q
     fi
   fi
 fi
@@ -1415,6 +1416,7 @@ check_git_() {
 refix() {
   if [[ "$1" == "-h" ]]; then
     echo "$yellow_cor refix$clear_cor : to reset last commit then run fix then re-push"
+    echo "$yellow_cor refix -q$clear_cor : suppress push output unless an error occurs"
     return 0;
   fi
 
@@ -1454,28 +1456,34 @@ refix() {
   setopt monitor
 
   git add .
-  git commit -m "$last_commit_msg"
+  git commit -m "$last_commit_msg" $@
 
-  if [[ -n "$Z_PUSH_AFTER_REFIX" && $Z_PUSH_AFTER_REFIX -eq 0 ]]; then
+  if [[ -n "$Z_PUSH_ON_REFIX" && $Z_PUSH_ON_REFIX -eq 0 ]]; then
     return 0;
   fi
 
-  if confirm_from_ "fix done, push now?"; then
-    if confirm_from_ "save this preference and don't ask again?"; then
-      if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-        update_config_ "Z_PUSH_AFTER_REFIX_1" 1
-      elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-        update_config_ "Z_PUSH_AFTER_REFIX_2" 1
-      elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        update_config_ "Z_PUSH_AFTER_REFIX_3" 1
+  if [[ "$1" != "-q" ]]; then
+    if confirm_from_ "fix done, push now?"; then
+      if confirm_from_ "save this preference and don't ask again?"; then
+        if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+          update_config_ "Z_PUSH_ON_REFIX_1" 1
+        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+          update_config_ "Z_PUSH_ON_REFIX_2" 1
+        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+          update_config_ "Z_PUSH_ON_REFIX_3" 1
+        fi
+        Z_PUSH_ON_REFIX=1
       fi
-      Z_PUSH_AFTER_REFIX=1
+    else
+      return 0;
     fi
-  else
-    return 0;
   fi
 
-  git push --no-verify --force
+  git push --no-verify --force $@
+
+  if [[ "$1" != "-q" ]]; then
+    git log -1 --pretty=format:'%s' | xargs -0
+  fi
 }
 
 alias i="$Z_PACKAGE_MANAGER install"
@@ -2506,7 +2514,7 @@ revs() {
 
   choice=$(gum choose --limit=1 --header " choose review:" $(echo "$rev_choices" | tr ' ' '\n'))
   if [[ $? -eq 0 && -n "$choice" ]]; then
-    rev "$proj_arg" "${choice//rev./}" "clean"
+    rev "$proj_arg" "${choice//rev./}" -q
   fi
 
   # cd "$REVS__pwd"
@@ -2628,7 +2636,7 @@ rev() {
 
   branch="";
 
-  if [[ -z "$3" ]]; then
+  if [[ -z "$3" ]]; then # -q
     open_prj_for_git_ "$proj_folder"; if [ $? -ne 0 ]; then return 1; fi
 
     git fetch origin --quiet
@@ -2642,7 +2650,7 @@ rev() {
 
       if [[ -n "$select_pr_choice" ]]; then
         echo "$pink_cor preparing to create review for PR: $select_pr_title $clear_cor"
-        rev "$proj_arg" "$select_pr_branch" "skip"
+        rev "$proj_arg" "$select_pr_branch" -q
         # cd "$_pwd"
         return 0;
       fi
@@ -2660,7 +2668,7 @@ rev() {
 
     if [[ -n "$select_pr_choice" ]]; then
       echo "$pink_cor preparing to create review for PR: $select_pr_title $clear_cor"
-      rev "$proj_arg" "$select_pr_branch" "skip"
+      rev "$proj_arg" "$select_pr_branch" -q
       # cd "$_pwd"
       return 0;
     fi
@@ -2892,7 +2900,7 @@ clone() {
         echo ""
       fi
   
-      check_prj_1_ "skip"
+      check_prj_1_ -q
       proj_repo="$Z_PROJECT_REPO_1"
       proj_folder="$Z_PROJECT_FOLDER_1"
       _clone="$Z_CLONE_1"
@@ -2910,7 +2918,7 @@ clone() {
         echo ""
       fi
 
-      check_prj_2_ "skip"
+      check_prj_2_ -q
       proj_repo="$Z_PROJECT_REPO_2"
       proj_folder="$Z_PROJECT_FOLDER_2"
       _clone="$Z_CLONE_2"
@@ -2928,7 +2936,7 @@ clone() {
         echo ""
       fi
   
-      check_prj_3_ "skip"
+      check_prj_3_ -q
       proj_repo="$Z_PROJECT_REPO_3"
       proj_folder="$Z_PROJECT_FOLDER_3"
       _clone="$Z_CLONE_3"
@@ -3341,10 +3349,24 @@ reset5() {
   git reset --quiet --soft HEAD~5
 }
 
+repush() {
+  if [[ "$1" == "-h" ]]; then
+    echo "$yellow_cor repush$clear_cor : to reset last commit then re-push all changes"
+    echo "$yellow_cor repush -s$clear_cor : to reset last commit then re-push only staged changes"
+    echo "$yellow_cor repush -q$clear_cor : suppress all output unless an error occurs"
+    return 0;
+  fi
+
+  recommit $@
+  if [ $? -ne 0 ]; then return 1; fi
+  push $@
+}
+
 recommit() {
   if [[ "$1" == "-h" ]]; then
-    echo "$yellow_cor recommit$clear_cor : to reset last commit then re-commit changes to index"
-    echo "$yellow_cor recommit -a$clear_cor : to reset last commit then re-commit all changes"
+    echo "$yellow_cor recommit$clear_cor : to reset last commit then re-commit all changes"
+    echo "$yellow_cor recommit -s$clear_cor : to reset last commit then re-commit only staged changes"
+    echo "$yellow_cor recommit -q$clear_cor : suppress all output unless an error occurs"
     return 0;
   fi
 
@@ -3352,7 +3374,9 @@ recommit() {
 
   git_status=$(git status --porcelain)
   if [[ -z "$git_status" ]]; then
-    echo " nothing to recommit, working tree clean"
+    if [[ "$1" != "-q" ]]; then
+      echo " nothing to recommit, working tree clean"
+    fi
     return 0;
   fi
 
@@ -3363,64 +3387,37 @@ recommit() {
     return 1;
   fi
 
-  git reset --quiet --soft HEAD~1 >/dev/null
-  if [ $? -ne 0 ]; then return 1; fi
+  if [[ "$1" != "-s" ]]; then
+    git reset --quiet --soft HEAD~1 >/dev/null
+    if [ $? -ne 0 ]; then return 1; fi
 
-  if [[ "$1" == "-a" ]]; then
-    git add .
-  elif [[ -z "$Z_COMMIT_ADD" ]]; then
-    if confirm_from_ "do you want to recommit all changes to $last_commit_msg?"; then
-      git add .
-      if confirm_from_ "save this preference and don't ask again?"; then
-        if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-          update_config_ "Z_COMMIT_ADD_1" 1
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-          update_config_ "Z_COMMIT_ADD_2" 1
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-          update_config_ "Z_COMMIT_ADD_3" 1
+    if [[ -z "$Z_COMMIT_ADD" ]]; then
+      if confirm_from_ "do you want to recommit all changes with '$last_commit_msg'?"; then
+        git add .
+        if confirm_from_ "save this preference and don't ask again?"; then
+          if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+            update_config_ "Z_COMMIT_ADD_1" 1
+          elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+            update_config_ "Z_COMMIT_ADD_2" 1
+          elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+            update_config_ "Z_COMMIT_ADD_3" 1
+          fi
+          Z_COMMIT_ADD=1
+          echo ""
         fi
-        Z_COMMIT_ADD=1
-        echo ""
       fi
-    # else
-    #   if confirm_from_ "save this preference and don't ask again?"; then
-    #     if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-    #       update_config_ "Z_COMMIT_ADD_1" 0
-    #     elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-    #       update_config_ "Z_COMMIT_ADD_2" 0
-    #     elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    #       update_config_ "Z_COMMIT_ADD_3" 0
-    #     fi
-    #     Z_COMMIT_ADD=0
-    #     echo ""
-    #   fi
-    fi
-  elif [[ $Z_COMMIT_ADD -eq 1 ]]; then
-    git add .
-  fi
-
-  git commit -m "$last_commit_msg"
-
-  if [[ -n "$Z_PUSH_AFTER_REFIX" && $Z_PUSH_AFTER_REFIX -eq 0 ]]; then
-    return 0;
-  fi
-
-  if confirm_from_ "re-commit done, push now?"; then
-    if confirm_from_ "save this preference and don't ask again?"; then
-      if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-        update_config_ "Z_PUSH_AFTER_REFIX_1" 1
-      elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-        update_config_ "Z_PUSH_AFTER_REFIX_2" 1
-      elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        update_config_ "Z_PUSH_AFTER_REFIX_3" 1
-      fi
-      Z_PUSH_AFTER_REFIX=1
+    elif [[ $Z_COMMIT_ADD -eq 1 ]]; then
+      git add .
     fi
   else
-    return 0;
+    if git diff --cached --quiet; then
+      echo " nothing to recommit, no staged changes"
+      echo " run$yellow_cor recommit$clear_cor to re-commit all changes"
+      return 1;
+    fi
   fi
 
-  git push --no-verify --force
+  git commit -m "$last_commit_msg" $@
 }
 
 commit() {
@@ -3553,7 +3550,7 @@ glog() {
 
   open_prj_for_git_; if [ $? -ne 0 ]; then return 1; fi
 
-  git --no-pager log --oneline -15 --graph --date=relative --decorate ${(z)OPTIONS}
+  git --no-pager log --oneline -15 --graph --date=relative --decorate $@
 
   cd "$_pwd"
 }
@@ -3561,6 +3558,7 @@ glog() {
 push() {
   if [[ "$1" == "-h" ]]; then
     echo "$yellow_cor push$clear_cor : to push no-verify to remote"
+    echo "$yellow_cor push -q$clear_cor : suppress all output unless an error occurs"
     return 0;
   fi
 
@@ -3571,6 +3569,10 @@ push() {
   my_branch=$(git branch --show-current)
 
   git push --no-verify --set-upstream origin $my_branch "$@"
+
+  if [[ "$1" != "-q" ]]; then
+    git log -1 --pretty=format:'%s' | xargs -0
+  fi
 }
 
 pushf() {
