@@ -17,35 +17,34 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-rm -rf temp
-mkdir -p temp
+rm -rf temp &>/dev/null
+mkdir -p temp &>/dev/null
 unzip -q -o pump-my-shell.zip -d temp
 if [ $? -ne 0 ]; then
   echo " failed to unzip the downloaded file, try again later"
-  rm pump-my-shell.zip
-  rm -rf temp
+  rm pump-my-shell.zip &>/dev/null
+  rm -rf temp &>/dev/null
   exit 1
 fi
 #echo " ✅ downloaded pump-my-shell version $TAG"
 
-rm pump-my-shell.zip >/dev/null 2>&1
+rm pump-my-shell.zip &>/dev/null
 
-__pwd="$(pwd)"
-cd temp/pump-my-shell-$TAG
+pushd temp/pump-my-shell-$TAG &>/dev/null
 if [ $? -ne 0 ]; then
-    rm -rf temp >/dev/null 2>&1
+    rm -rf temp &>/dev/null
     echo " failed to change directory to temp/pump-my-shell-$TAG, try running: "
     echo "  sudo unzip -q -o pump-my-shell.zip -d temp && cd temp/pump-my-shell-$TAG && zsh ./scripts/update.zsh"
     exit 1
 fi
 
-if command -v zsh &> /dev/null; then
+if command -v zsh &>/dev/null; then
   zsh ./scripts/update.zsh
 else
   echo " no Zsh found, install Oh My Zsh, then run the script again to finish the installation"
   echo " \033[94m https://ohmyz.sh/\033[0m"
 fi
 
-cd "$__pwd"
-rm -rf temp
+popd &>/dev/null
+rm -rf temp &>/dev/null
 echo ""
