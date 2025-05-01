@@ -4393,18 +4393,6 @@ co() {
   git branch $branch $user_base_branch
   if [ $? -ne 0 ]; then return 1; fi
 
-  git switch $branch
-  if [ $? -ne 0 ]; then return 1; fi
-
-  PUMP_PAST_BRANCH="$pump_past_branch" # svae this for back() function
-
-  if [[ -n "$Z_PROJECT_FOLDER" && -d "$Z_PROJECT_FOLDER" ]]; then
-    check_git_silent_ "$Z_PROJECT_FOLDER";
-    if [ $? -eq 0 ]; then
-      if ! confirm_from_ "save this as working branch?"; then
-        return 0;
-      fi
-    fi
   fi
 
   if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
