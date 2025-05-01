@@ -23,5 +23,5 @@
     "update_bash": "bash ./scripts/update.sh",
     "update_config": "zsh ./scripts/update_config.zsh"
   },
-  "version": "0.0.6"
+  "version": "0.0.7"
 }

@@ -62,9 +62,13 @@ confirm_from_() {
   fi
 }
 
+choose_multiple_branches_() {
+  echo "$(gum choose --no-limit --height 20 --header=" $1" $(echo "$2" | tr ' ' '\n'))"
+}
+
 choose_one_() {
   if command -v gum &>/dev/null; then
-    echo "$(gum choose --limit=1 --height 20 --header " $1" ${@:2})"
+    echo "$(gum choose --limit=1 --height 20 --header=" $1" ${@:2})"
     return 0;
   fi
   
@@ -84,7 +88,7 @@ choose_one_() {
 
 choose_auto_one_() {
   if command -v gum &>/dev/null; then
-    echo "$(gum choose --limit=1 --select-if-one --height 20 --header " $1" ${@:2})"
+    echo "$(gum choose --limit=1 --select-if-one --height 20 --header=" $1" ${@:2})"
     return 0;
   fi
   
@@ -118,10 +122,53 @@ del() {
     return 0;
   fi
 
+  _pro=$(which_pro_pwd)
+  proj_folder=""
+  pump_working_branch=""
+
+  if [[ -n "$_pro" ]]; then
+    if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+      proj_folder="$Z_PROJECT_FOLDER_1"
+      pump_working_branch="$PUMP_WORKING_BRANCH_1"
+    elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+      proj_folder="$Z_PROJECT_FOLDER_2"
+      pump_working_branch="$PUMP_WORKING_BRANCH_2"
+    elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+      proj_folder="$Z_PROJECT_FOLDER_3"
+      pump_working_branch="$PUMP_WORKING_BRANCH_3"
+    fi
+  fi
+
   if [[ -z "$1" ]]; then
-    # "*/" is to list only folders
-    ls -d */ | sed 's:/$::' | gum choose --no-limit --header="choose what to delete "$'$solid_yellow_cor'"(use spacebar to select)"$'\e[0m'"" | xargs -r -I {} gum spin --title "deleting... {}" -- rm -rf "{}"
-    ls
+
+    if [[ -n ${(f)$(echo */ 2>/dev/null)} ]]; then
+      # "*/" is to list only folders
+      folders=($(ls -d */ 2>/dev/null | sed 's:/$::'))
+      selected_folders=($(gum choose --no-limit --height 20 --header=" choose folder to delete" "${folders[@]}"))
+
+      for folder in "${selected_folders[@]}"; do
+        gum spin --title "deleting... $folder" -- rm -rf "$folder"
+        echo "$magenta_cor deleted$blue_cor $folder $clear_cor"
+
+        if [[ -n "$pump_working_branch" && -n "$_pro" ]]; then
+          if [[ "$folder" == "$pump_working_branch" ]]; then
+            if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+              rm -f "$PUMP_WORKING_BRANCH_FILE_1"
+              PUMP_WORKING_BRANCH_1=""
+            elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+              rm -f "$PUMP_WORKING_BRANCH_FILE_2"
+              PUMP_WORKING_BRANCH_2=""
+            elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+              rm -f "$PUMP_WORKING_BRANCH_FILE_3"
+              PUMP_WORKING_BRANCH_3=""
+            fi
+          fi
+        fi
+      done
+      ls
+    else
+      echo " no folders to delete"
+    fi
     return 0;
   fi
 
@@ -132,7 +179,24 @@ del() {
 
     setopt null_glob
     for i in */; do
-      gum spin --title "deleting... ${i%/}" -- rm -rf "${i%/}"
+      folder="${i%/}"
+      gum spin --title "deleting... $folder" -- rm -rf "$folder"
+      echo "$magenta_cor deleted$blue_cor $folder $clear_cor"
+
+      if [[ -n "$pump_working_branch" && -n "$_pro" ]]; then
+        if [[ "$folder" == "$pump_working_branch" ]]; then
+          if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+            rm -f "$PUMP_WORKING_BRANCH_FILE_1"
+            PUMP_WORKING_BRANCH_1=""
+          elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+            rm -f "$PUMP_WORKING_BRANCH_FILE_2"
+            PUMP_WORKING_BRANCH_2=""
+          elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+            rm -f "$PUMP_WORKING_BRANCH_FILE_3"
+            PUMP_WORKING_BRANCH_3=""
+          fi
+        fi
+      fi
     done
     unsetopt null_glob
     
@@ -165,8 +229,27 @@ del() {
   file_path_log=""
   if [[ "$file_path" == "$(PWD)"* ]]; then # the file_path is inside the current path
     file_path_log=$(shorten_path_until_ "$file_path")
+  elif [[ -n "$$proj_folder" ]]; then
+    file_path_log=$(shorten_path_until_ "$file_path" $(basename "$proj_folder"))
   else
-    file_path_log=$(shorten_path_until_ "$file_path" $(basename "$Z_PROJECT_FOLDER"))
+    file_path_log="$file_path"
+  fi
+
+  folder=$(basename "$file_path")
+
+  if [[ -n "$pump_working_branch" && -n "$_pro" ]]; then
+    if [[ "$folder" == "$pump_working_branch" ]]; then
+      if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+        rm -f "$PUMP_WORKING_BRANCH_FILE_1"
+        PUMP_WORKING_BRANCH_1=""
+      elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+        rm -f "$PUMP_WORKING_BRANCH_FILE_2"
+        PUMP_WORKING_BRANCH_2=""
+      elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+        rm -f "$PUMP_WORKING_BRANCH_FILE_3"
+        PUMP_WORKING_BRANCH_3=""
+      fi
+    fi
   fi
 
   gum spin --title "deleting... $file_path" -- rm -rf "$file_path"
@@ -1316,7 +1399,7 @@ if [ $? -ne 0 ]; then
   if [[ -n "$pump_pro_file_value" ]]; then
     check_proj_name_valid_ "$pump_pro_file_value"
     if [ $? -ne 0 ]; then
-      rm -rf "$PUMP_PRO_FILE" &>/dev/null
+      rm -f "$PUMP_PRO_FILE" &>/dev/null
       pump_pro_file_value=""
     fi
   fi
@@ -1387,7 +1470,7 @@ check_pkg_silent_() {
 }
 
 check_git_silent_() {
-  folder=${1:-$PWD};
+  folder="${1:-$PWD}"
 
   if [[ ! -d "$folder" ]]; then
     return 1;
@@ -1541,8 +1624,7 @@ if [[ "$Z_TEST_WATCH" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]
 fi
 
 get_default_branch_folder_() {
-  proj_folder=${1:-$PWD};
-
+  proj_folder="${1:-$PWD}"
   branch_folder=$(get_prj_for_git_ "$proj_folder")
 
   if [[ -z "$branch_folder" ]]; then
@@ -1583,7 +1665,6 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
 
     folder=""
     branch=""
-
     is_working_branch=0
 
     if [ $single_mode -eq 0 ]; then # true, is single mode
@@ -1608,12 +1689,14 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
     if [[ -n "$folder" ]]; then
       if [[ $is_working_branch -eq 1 ]]; then check_pkg_silent_ "$folder"; else check_pkg_ "$folder"; fi
       if [ $? -eq 0 ]; then
+        #if [[ $is_working_branch -eq 0 ]]; then
         pushd "$folder" &>/dev/null
       fi
     fi
     
     if [[ -n "$branch" ]]; then
       co -e $branch $is_working_branch
+      st
     fi
   }
 fi
@@ -1638,11 +1721,17 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
 
     folder=""
     branch=""
+    is_working_branch=0
 
     if [ $single_mode -eq 0 ]; then # true, is single mode
-      branch=${1:-$PUMP_WORKING_BRANCH_2}
+      branch="$1"
+      if [[ -z "$branch" ]]; then
+        is_working_branch=1
+        branch="$PUMP_WORKING_BRANCH_2"
+      fi
     else
       if [[ -z "$1" ]]; then
+        is_working_branch=1
         folder="$PUMP_WORKING_BRANCH_2"
         if [[ -z "$folder" || ! -d "$folder" ]]; then
           folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_2")
@@ -1654,14 +1743,15 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
     fi
 
     if [[ -n "$folder" ]]; then
-      check_pkg_ "$folder"
+      if [[ $is_working_branch -eq 1 ]]; then check_pkg_silent_ "$folder"; else check_pkg_ "$folder"; fi
       if [ $? -eq 0 ]; then
         pushd "$folder" &>/dev/null
       fi
     fi
     
     if [[ -n "$branch" ]]; then
-      co -e $branch
+      co -e $branch $is_working_branch
+      st
     fi
   }
 fi
@@ -1686,11 +1776,17 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
 
     folder=""
     branch=""
+    is_working_branch=0
 
     if [ $single_mode -eq 0 ]; then # true, is single mode
-      branch=${1:-$PUMP_WORKING_BRANCH_3}
+      branch="$1"
+      if [[ -z "$branch" ]]; then
+        is_working_branch=1
+        branch="$PUMP_WORKING_BRANCH_3"
+      fi
     else
       if [[ -z "$1" ]]; then
+        is_working_branch=1
         folder="$PUMP_WORKING_BRANCH_3"
         if [[ -z "$folder" || ! -d "$folder" ]]; then
           folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_3")
@@ -1702,14 +1798,15 @@ if [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
     fi
 
     if [[ -n "$folder" ]]; then
-      check_pkg_ "$folder"
+      if [[ $is_working_branch -eq 1 ]]; then check_pkg_silent_ "$folder"; else check_pkg_ "$folder"; fi
       if [ $? -eq 0 ]; then
         pushd "$folder" &>/dev/null
       fi
     fi
     
     if [[ -n "$branch" ]]; then
-      co -e $branch
+      co -e $branch $is_working_branch
+      st
     fi
   }
 fi
@@ -3753,8 +3850,8 @@ reseta() {
 }
 
 open_prj_for_git_() {
-  proj_folder="${1:-$PWD}";
-  git_folder=$(get_prj_for_git_ "$proj_folder");
+  proj_folder="${1:-$PWD}"
+  git_folder=$(get_prj_for_git_ "$proj_folder")
 
   if [[ -z "$git_folder" ]]; then
     if [[ -z "$2" ]]; then
@@ -3767,7 +3864,7 @@ open_prj_for_git_() {
 }
 
 get_prj_for_git_() {
-  proj_folder="${1:-$PWD}";
+  proj_folder="${1:-$PWD}"
 
   check_git_silent_ "$proj_folder"
   if [ $? -eq 0 ]; then
@@ -3800,9 +3897,9 @@ get_prj_for_git_() {
   if [[ -z "$folder" ]]; then
     setopt null_glob
     for i in */; do
-      check_git_silent_ "$i"
+      check_git_silent_ "${i%/}"
       if [ $? -eq 0 ]; then
-        folder="$proj_folder/$i"
+        folder="$proj_folder/${i%/}"
         break;
       fi
     done
@@ -4758,26 +4855,30 @@ delb() {
     branch_arg="$2"
   elif [[ -n "$1" && "$1" != "-1" ]]; then
     if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      proj_arg="${1:-$Z_PROJECT_SHORT_NAME}"
+      proj_arg="$1"
     else
       branch_arg="$1"
     fi
   fi
 
   proj_folder=""
+  pump_working_branch=""
 
   if [[ -n "$proj_arg" ]]; then
     if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
       check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
       proj_folder="$Z_PROJECT_FOLDER_1"
+      pump_working_branch="$PUMP_WORKING_BRANCH_1"
 
     elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
       check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
       proj_folder="$Z_PROJECT_FOLDER_2"
+      pump_working_branch="$PUMP_WORKING_BRANCH_2"
 
     elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
       check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
       proj_folder="$Z_PROJECT_FOLDER_3"
+      pump_working_branch="$PUMP_WORKING_BRANCH_3"
 
     else
       echo " not a valid project: $proj_arg"
@@ -4792,37 +4893,72 @@ delb() {
 
   open_prj_for_git_ "$proj_folder"; if [ $? -ne 0 ]; then return 1; fi
 
-  if [ $? -eq 0 ]; then
-    proj_folder="$(PWD)";
-    # delb (no arguments)
-    if [[ -z "$branch_arg" ]] || [[ "$1" == "-f" ]]; then
-      choices="";
-      if [[ "$1" == "-f" ]]; then
-        choices=$(git branch | grep -v '^\*' | cut -c 3- | sort -fu);
-      else
-        choices=$(git branch | grep -v '^\*' | cut -c 3- | grep -vE '^(main|dev|stage|master|staging|develop)$' | sort -fu);
-      fi
-      if [[ -n "$choices" ]]; then
-        echo "$choices" | gum choose --height=20 --no-limit --header " choose branches to delete "$'$solid_yellow_cor'"(use spacebar to select)"$'\e[0m'"" | xargs git branch -D
-      else
-        echo " no branches found to delete in \e[96m$(shorten_path_ $proj_folder) $clear_cor"
-      fi
-    else # delb branch
-      branch_search="${branch_arg//\*/}"
-      branch=$(git branch | grep -w "$branch_search" | cut -c 3- | head -n 1)
+  proj_folder="$(PWD)";
 
-      if [[ -z "$branch" ]]; then
-        echo " no branches matching in \e[96m$(shorten_path_ $proj_folder)\e[0m: $branch_search"
-      else
-        confirm_msg="delete "$'$solid_yellow_cor'$branch:$'\e[0m'" in "$'\e[94m'$(shorten_path_ $proj_folder)$'\e[0m'"?"
-        if confirm_from_ $confirm_msg; then
-          git branch -D $branch
-        fi
+  is_deleted=1;
+  selected_branches=""
+
+  # delb (no arguments)
+  if [[ -z "$branch_arg" ]] || [[ "$1" == "-f" ]]; then
+    branches_to_choose="";
+    if [[ "$1" == "-f" ]]; then
+      branches_to_choose=$(git branch | grep -v '^\*' | cut -c 3- | sort -fu);
+    else
+      branches_to_choose=$(git branch | grep -v '^\*' | cut -c 3- | grep -vE '^(main|dev|stage|master|staging|develop)$' | sort -fu);
+    fi
+    if [[ -n "$branches_to_choose" ]]; then
+      selected_branches=$(choose_multiple_branches_ "choose branches to delete" "$branches_to_choose")
+      echo "$selected_branches" | xargs git branch -D
+      is_deleted=$?
+    else
+      echo " no branches found to delete in \e[96m$(shorten_path_ $proj_folder) $clear_cor"
+    fi
+  else # delb branch
+    branch_search="${branch_arg//\*/}"
+    selected_branches=$(git branch | grep -w "$branch_search" | cut -c 3- | head -n 1)
+
+    if [[ -z "$selected_branches" ]]; then
+      echo " no branches matching in \e[96m$(shorten_path_ $proj_folder)\e[0m: $branch_search"
+    else
+      confirm_msg="delete "$'\e[94m'$selected_branches:$'\e[0m'" in "$'\e[94m'$(shorten_path_ $proj_folder)$'\e[0m'"?"
+      
+      if confirm_from_ $confirm_msg; then
+        git branch -D $selected_branches
+        is_deleted=$?
       fi
     fi
-
-    cd "$_pwd"
   fi
+
+  if [[ $is_deleted -eq 0 ]]; then
+    if [[ -z "$pump_working_branch" && -z "$proj_arg" ]]; then
+      proj_arg=$(which_pro_pwd)
+      if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+        pump_working_branch="$PUMP_WORKING_BRANCH_1"
+      elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+        pump_working_branch="$PUMP_WORKING_BRANCH_2"
+      elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+        pump_working_branch="$PUMP_WORKING_BRANCH_3"
+      fi
+    fi
+    if [[ -n "$pump_working_branch" && -n "$proj_arg" ]]; then
+      for branch in $selected_branches; do
+        if [[ "$branch" == "$pump_working_branch" ]]; then
+          if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
+            rm -f "$PUMP_WORKING_BRANCH_FILE_1"
+            PUMP_WORKING_BRANCH_1=""
+          elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
+            rm -f "$PUMP_WORKING_BRANCH_FILE_2"
+            PUMP_WORKING_BRANCH_2=""
+          elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+            rm -f "$PUMP_WORKING_BRANCH_FILE_3"
+            PUMP_WORKING_BRANCH_3=""
+          fi
+        fi
+      done
+    fi
+  fi
+
+  cd "$_pwd"
 }
 
 update_
