@@ -259,7 +259,16 @@ del() {
         fi
       else
         if [[ dont_ask -eq 0 && is_all -eq 0 ]]; then
-          confirm_from_ "delete all remaining $pattern?"
+          maxlen=90
+          split_pattern=""
+
+          while [[ -n $pattern ]]; do
+            line="${pattern[1,$maxlen]}"
+            split_pattern+=""$'\e[94m'$line$'\n\e[0m'""
+            pattern="${pattern[$((maxlen + 1)),-1]}"
+          done
+          split_pattern="${split_pattern%""$'\n\e[0m'""}"
+          confirm_from_ "delete all remaining $split_pattern"$'\e[0m'"?"
           _result=$?
           if [[ $_result -eq 130 ]]; then
             break;
@@ -1160,7 +1169,7 @@ help() {
   help_line_ "multi-step tasks" "${pink_cor}"
   echo ""
   echo " ${pink_cor} covc ${clear_cor}\t\t = compare test coverage with another branch"
-  echo " ${pink_cor} refix ${clear_cor}\t = reset last commit then run fix then re-commit"
+  echo " ${pink_cor} refix ${clear_cor}\t = reset last commit, run fix then re-commit/push"
   echo " ${pink_cor} recommit ${clear_cor}\t = reset last commit then re-commit all changes"
   echo " ${pink_cor} repush ${clear_cor}\t = reset last commit then re-push all changes"
   echo " ${pink_cor} rev ${clear_cor}\t\t = select branch to review"
@@ -2989,7 +2998,7 @@ revs() {
     return 1;
   fi
 
-  choice=$(gum choose --limit=1 --header " choose review folder:" $(echo "$rev_choices" | tr ' ' '\n'))
+  choice=$(gum choose --limit=1 --header " choose review to open:" $(echo "$rev_choices" | tr ' ' '\n'))
   if [[ $? -eq 0 && -n "$choice" ]]; then
     rev "$proj_arg" "${choice//rev./}" -q
   fi
@@ -3844,7 +3853,7 @@ repush() {
   if [[ "$1" == "-h" ]]; then
     echo "${yellow_cor} repush${clear_cor} : to reset last commit then re-push all changes"
     echo "${yellow_cor} repush -s${clear_cor} : to reset last commit then re-push only staged changes"
-    echo "${yellow_cor} repush -q${clear_cor} : suppress all output unless an error occurs"
+    echo "${yellow_cor} repush -q${clear_cor} : suppress output unless an error occurs"
     return 0;
   fi
 
@@ -4056,7 +4065,7 @@ push() {
   if [[ "$1" == "-h" ]]; then
     echo "${yellow_cor} push${clear_cor} : to push no-verify to remote"
     echo "${yellow_cor} push tags${clear_cor} : to push tags to remote"
-    echo "${yellow_cor} push -q${clear_cor} : suppress all output unless an error occurs"
+    echo "${yellow_cor} push -q${clear_cor} : suppress output unless an error occurs"
     return 0;
   fi
 
@@ -4083,6 +4092,7 @@ pushf() {
   if [[ "$1" == "-h" ]]; then
     echo "${yellow_cor} pushf${clear_cor} : to force push no-verify to remote"
     echo "${yellow_cor} pushf tags${clear_cor} : to force push tags to remote"
+    echo "${yellow_cor} pushf -q${clear_cor} : to suppress output unless an error occurs"
     return 0;
   fi
 
@@ -4140,6 +4150,7 @@ pull() {
   if [[ "$1" == "-h" ]]; then
     echo "${yellow_cor} pull${clear_cor} : to pull all branches"
     echo "${yellow_cor} pull tags${clear_cor} : to pull all tags"
+    echo "${yellow_cor} pull -q${clear_cor} : to suppress output unless an error occurs"
     return 0;
   fi
 
@@ -4149,6 +4160,12 @@ pull() {
     git pull origin --tags "$@"
   else
     git pull origin "$@"
+  fi
+
+  if [[ $? -eq 0 && "$1" != "-q" && "$1" != "tags" ]]; then
+    echo ""
+    git log -1 --pretty=format:'%H %s' | xargs -0
+    echo ""
   fi
 }
 
@@ -4435,7 +4452,7 @@ choose_branch_() {
 }
 
 filter_branch_() {
-  choice=$(echo "$1" | gum filter --limit 1 --indicator ">" --placeholder " $2")
+  choice=$(echo "$1" | gum filter --height 25 --limit 1 --indicator ">" --placeholder " $2")
   if [[ $? -ne 0 || -z "$choice" ]]; then
     echo ""
   else
@@ -4452,8 +4469,8 @@ select_branch_() {
   branch_choices_count=$(echo "$branch_choices" | wc -l)
 
   if [[ -n "$branch_choices" ]]; then
-    if [ $branch_choices_count -gt 30 ]; then
-      select_branch_choice=$(filter_branch_ "$branch_choices" "search branch:" ${@:3})
+    if [ $branch_choices_count -gt 20 ]; then
+      select_branch_choice=$(filter_branch_ "$branch_choices" "type branch name" ${@:3})
     else
       select_branch_choice=$(choose_branch_ "$branch_choices" "choose branch:" ${@:3})
     fi
@@ -4473,10 +4490,11 @@ select_pr_() {
   if [[ -n "$pr_list" ]]; then
     titles=$(echo "$pr_list" | cut -f2);
 
-    if [ $PRS_COUNT -gt 30 ]; then
-      select_pr_title=$(echo "$titles" | gum filter --select-if-one --height 30 --placeholder " search pull request:");
+    if [ $PRS_COUNT -gt 20 ]; then
+      echo "${purple_cor} choose pull request: ${clear_cor}"
+      select_pr_title=$(echo "$titles" | gum filter --select-if-one --height 20 --placeholder " type pull request title");
     else
-      select_pr_title=$(echo "$titles" | gum choose --select-if-one --height 30 --header " choose pull request:");
+      select_pr_title=$(echo "$titles" | gum choose --select-if-one --height 20 --header " choose pull request:");
     fi
 
     select_pr_choice="$(echo "$pr_list" | awk -v title="$select_pr_title" -F'\t' '$2 == title {print $1}')"
@@ -4762,6 +4780,7 @@ co() {
 
   # co (no arguments) branches
   if [[ -z "$1" ]]; then
+    echo "${purple_cor} choose branch: ${clear_cor}"
     select_branch_ --list
     if [[ $? -ne 0 ]]; then return 0; fi
 
@@ -4786,6 +4805,7 @@ co() {
 
   # co -a all branches
   if [[ "$1" == "-a" || "$2" == "-a" ]]; then
+    echo "${purple_cor} choose branch: ${clear_cor}"
     if [[ "$1" == "-a" ]]; then
       select_branch_ -a "$2";
     else
@@ -4809,6 +4829,7 @@ co() {
 
   # co -r remote branches
   if [[ "$1" == "-r" || "$2" == "-r" ]]; then
+    echo "${purple_cor} choose remote branch: ${clear_cor}"
     if [[ "$1" == "-r" ]]; then
       select_branch_ -r "$2";
     else
