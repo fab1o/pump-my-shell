@@ -164,6 +164,13 @@ Z_DEFAULT_BRANCH_2=
 Z_DEFAULT_BRANCH_3=
 
 # optional
+# default: 0
+# Set 1 to display README after cloning (requires glow), 0 to not display
+Z_PRINT_README_1=1
+Z_PRINT_README_2=1
+Z_PRINT_README_3=1
+
+# optional
 # default: 10 minutes
 # Interval to run `gha` in minutes
 Z_GHA_INTERVAL_1=
