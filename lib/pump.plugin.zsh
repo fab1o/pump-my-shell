@@ -1,3 +1,33 @@
+update_() {
+  version=${1:-$PUMP_VERSION}
+
+  release_tag="https://api.github.com/repos/fab1o/pump-my-shell/releases/latest"
+  latest_version=$(curl -s $release_tag | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+  if [[ -n "$latest_version" && "$version" != "$latest_version" ]]; then
+    echo " new version available for pump-my-shell:${yellow_cor} $version -> $latest_version ${clear_cor}"
+
+    if [[ "$2" != "-f" ]]; then
+      if ! confirm_from_ "do you want to install new version?"; then
+        return 0;
+      fi
+    fi
+
+    echo " if you encounter an error after installation, don't worry — simply restart your terminal"
+
+    /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
+    return 1;
+  else
+    if [[ "$2" == "-f" ]]; then
+      echo " no update available for pump-my-shell:${yellow_cor} $version ${clear_cor}"
+    fi
+  fi
+}
+PUMP_VERSION="0.0.0"
+_version_file_path="$(dirname "$0")/.version"
+[[ -f "$_version_file_path" ]] && PUMP_VERSION=$(<"$_version_file_path")
+update_
+
 # General
 alias cl="tput reset"
 alias hg="history | grep" # $1
@@ -22,7 +52,7 @@ refresh() {
 }
 
 upgrade() {
-  update_ "-f";
+  update_ -f;
 
   if command -v omz &>/dev/null; then
     omz update
@@ -144,21 +174,18 @@ del() {
     return 1;
   fi
 
-  _pro=$(which_pro_pwd)
+  _pro=$(which_pro_pwd_)
   proj_folder=""
   pump_working_branch=""
 
   if [[ -n "$_pro" ]]; then
-    if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      proj_folder="$Z_PROJECT_FOLDER_1"
-      pump_working_branch="$PUMP_WORKING_BRANCH_1"
-    elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      proj_folder="$Z_PROJECT_FOLDER_2"
-      pump_working_branch="$PUMP_WORKING_BRANCH_2"
-    elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      proj_folder="$Z_PROJECT_FOLDER_3"
-      pump_working_branch="$PUMP_WORKING_BRANCH_3"
-    fi
+    for i in {1..10}; do
+      if [[ "$_pro" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        pump_working_branch="${PUMP_WORKING[$i]}"
+        break
+      fi
+    done
   fi
 
   if [[ -z "$1" ]]; then
@@ -166,25 +193,9 @@ del() {
       folders=($(get_folders_))
       selected_folders=($(gum choose --no-limit --height 20 --header=" choose folder to delete" "${folders[@]}"))
 
+      delete_pump_workings_ "$pump_working_branch" "$_pro" "${selected_folders[@]}"
+
       for folder in "${selected_folders[@]}"; do
-        if [[ -n "$pump_working_branch" && -n "$_pro" ]]; then
-          if [[ "$folder" == "$pump_working_branch" ]]; then
-            if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-              rm -f "$PUMP_WORKING_BRANCH_FILE_1"
-              PUMP_WORKING_BRANCH_1=""
-              pump_working_branch=""
-            elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-              rm -f "$PUMP_WORKING_BRANCH_FILE_2"
-              PUMP_WORKING_BRANCH_2=""
-              pump_working_branch=""
-            elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-              rm -f "$PUMP_WORKING_BRANCH_FILE_3"
-              PUMP_WORKING_BRANCH_3=""
-              pump_working_branch=""
-            fi
-          fi
-        fi
-      
         gum spin --title "deleting... $folder" -- rm -rf "$folder"
         echo "${magenta_cor} deleted${blue_cor} $folder ${clear_cor}"
       done
@@ -203,26 +214,9 @@ del() {
     setopt null_glob
 
     for i in */; do
-      echo "$i"
       folder="${i%/}"
 
-      if [[ -n "$pump_working_branch" && -n "$_pro" ]]; then
-        if [[ "$folder" == "$pump_working_branch" ]]; then
-          if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_1"
-            PUMP_WORKING_BRANCH_1=""
-            pump_working_branch=""
-          elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_2"
-            PUMP_WORKING_BRANCH_2=""
-            pump_working_branch=""
-          elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_3"
-            PUMP_WORKING_BRANCH_3=""
-            pump_working_branch=""
-          fi
-        fi
-      fi
+      delete_pump_working_ "$folder" "$pump_working_branch" "$_pro"
   
       gum spin --title "deleting... $folder" -- rm -rf "$folder"
       echo "${magenta_cor} deleted${blue_cor} $folder ${clear_cor}"
@@ -293,22 +287,7 @@ del() {
 
       if [[ -d "$f" && -n "$pump_working_branch" && -n "$_pro" ]]; then
         folder=$(basename "$f")
-
-        if [[ "$folder" == "$pump_working_branch" ]]; then
-          if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_1"
-            PUMP_WORKING_BRANCH_1=""
-            pump_working_branch=""
-          elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_2"
-            PUMP_WORKING_BRANCH_2=""
-            pump_working_branch=""
-          elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_3"
-            PUMP_WORKING_BRANCH_3=""
-            pump_working_branch=""
-          fi
-        fi
+        delete_pump_working_ "$folder" "$pump_working_branch" "$_pro"
       fi
       gum spin --title "deleting... $f" -- rm -rf "$f"
       echo "${magenta_cor} deleted${blue_cor} $f ${clear_cor}"
@@ -360,21 +339,7 @@ del() {
 
   if [[ -d "$file_path" && -n "$pump_working_branch" && -n "$_pro" ]]; then
     folder=$(basename "$file_path")
-    if [[ "$folder" == "$pump_working_branch" ]]; then
-      if [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-        rm -f "$PUMP_WORKING_BRANCH_FILE_1"
-        PUMP_WORKING_BRANCH_1=""
-        pump_working_branch=""
-      elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-        rm -f "$PUMP_WORKING_BRANCH_FILE_2"
-        PUMP_WORKING_BRANCH_2=""
-        pump_working_branch=""
-      elif [[ "$_pro" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        rm -f "$PUMP_WORKING_BRANCH_FILE_3"
-        PUMP_WORKING_BRANCH_3=""
-        pump_working_branch=""
-      fi
-    fi
+    delete_pump_working_ "$folder" "$pump_working_branch" "$_pro"
   fi
 
   gum spin --title "deleting... $file_path" -- rm -rf "$file_path"
@@ -385,211 +350,7 @@ del() {
   fi
 }
 
-update_() {
-  RELEASE_API="https://api.github.com/repos/fab1o/pump-my-shell/releases/latest"
-  LATEST_VERSION=$(curl -s $RELEASE_API | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-
-  if [[ -n "$LATEST_VERSION" && "$PUMP_VERSION" != "$LATEST_VERSION" ]]; then
-    echo " new version available for pump-my-shell:${yellow_cor} $PUMP_VERSION -> $LATEST_VERSION ${clear_cor}"
-
-    if [[ -z "$1" ]]; then
-      if ! confirm_from_ "do you want to install new version?"; then
-        return 0;
-      fi
-    fi
-
-    echo " if you encounter an error after installation, don't worry — simply restart your terminal"
-
-    /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
-    return 1;
-  else
-    if [[ -n "$1" ]]; then
-      echo " no update available for pump-my-shell:${yellow_cor} $PUMP_VERSION ${clear_cor}"
-    fi
-  fi
-}
-
-# ========================================================================
-# Project configuration
-PUMP_CONFIG_FILE="$(dirname "$0")/config/pump.zshenv"
-
-if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
-  echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
-  return 1
-fi
-
-PUMP_PRO_FILE="$(dirname "$0")/.pump"
-PUMP_VERSION="0.0.0"
-PUMP_WORKING_BRANCH_1=""
-PUMP_WORKING_BRANCH_2=""
-PUMP_WORKING_BRANCH_3=""
-
-_version_file_path="$(dirname "$0")/.version"
-[[ -f "$_version_file_path" ]] && PUMP_VERSION=$(<"$_version_file_path")
-
-PUMP_WORKING_BRANCH_FILE_1="$(dirname "$0")/.working_branch_1"
-[[ -f "$PUMP_WORKING_BRANCH_FILE_1" ]] && PUMP_WORKING_BRANCH_1=$(<"$PUMP_WORKING_BRANCH_FILE_1")
-
-PUMP_WORKING_BRANCH_FILE_2="$(dirname "$0")/.working_branch_2"
-[[ -f "$PUMP_WORKING_BRANCH_FILE_2" ]] && PUMP_WORKING_BRANCH_2=$(<"$PUMP_WORKING_BRANCH_FILE_2")
-
-PUMP_WORKING_BRANCH_FILE_3="$(dirname "$0")/.working_branch_3"
-[[ -f "$PUMP_WORKING_BRANCH_FILE_3" ]] && PUMP_WORKING_BRANCH_3=$(<"$PUMP_WORKING_BRANCH_FILE_3")
-# ========================================================================
-
-# project 1 ==============================================================
-Z_PROJECT_FOLDER_1_=$(sed -n 's/^Z_PROJECT_FOLDER_1=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE"); Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_/#\~/$HOME}"
-if [[ -n "$Z_PROJECT_FOLDER_1_" ]]; then
-  Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_%/}"
-  Z_PROJECT_FOLDER_1=$(realpath "$Z_PROJECT_FOLDER_1_" 2>/dev/null)
-fi
-Z_PROJECT_SHORT_NAME_1=$(sed -n 's/^Z_PROJECT_SHORT_NAME_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PROJECT_REPO_1=$(sed -n 's/^Z_PROJECT_REPO_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PACKAGE_MANAGER_1=${$(sed -n 's/^Z_PACKAGE_MANAGER_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-npm}
-Z_CODE_EDITOR_1=${$(sed -n 's/^Z_CODE_EDITOR_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-code}
-Z_CLONE_1=$(sed -n 's/^Z_CLONE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_SETUP_1=$(sed -n 's/^Z_SETUP_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_RUN_1=${$(sed -n 's/^Z_RUN_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")dev}
-Z_RUN_STAGE_1=${$(sed -n 's/^Z_RUN_STAGE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")stage}
-Z_RUN_PROD_1=${$(sed -n 's/^Z_RUN_PROD_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")prod}
-Z_PRO_1=$(sed -n 's/^Z_PRO_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_TEST_1=${$(sed -n 's/^Z_TEST_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test}
-Z_COV_1=${$(sed -n 's/^Z_COV_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:coverage}
-Z_TEST_WATCH_1=${$(sed -n 's/^Z_TEST_WATCH_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:watch}
-Z_E2E_1=${$(sed -n 's/^Z_E2E_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:e2e}
-Z_E2EUI_1=${$(sed -n 's/^Z_E2EUI_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
-Z_PR_TEMPLATE_1=$(sed -n 's/^Z_PR_TEMPLATE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PR_REPLACE_1=$(sed -n 's/^Z_PR_REPLACE_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PR_APPEND_1=${$(sed -n 's/^Z_PR_APPEND_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
-Z_PR_RUN_TEST_1=$(sed -n 's/^Z_PR_RUN_TEST_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_GHA_INTERVAL_1=${$(sed -n 's/^Z_GHA_INTERVAL_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-10}
-Z_COMMIT_ADD_1=$(sed -n 's/^Z_COMMIT_ADD_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_DEFAULT_BRANCH_1=$(sed -n 's/^Z_DEFAULT_BRANCH_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_GHA_WORKFLOW_1=$(sed -n 's/^Z_GHA_WORKFLOW_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PUSH_ON_REFIX_1=$(sed -n 's/^Z_PUSH_ON_REFIX_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PRINT_README_1=${$(sed -n 's/^Z_PRINT_README_1=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
-
-# project 2 ========================================================================
-Z_PROJECT_FOLDER_2=""
-Z_PROJECT_FOLDER_2_=$(sed -n 's/^Z_PROJECT_FOLDER_2=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE"); Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_/#\~/$HOME}"
-if [[ -n "$Z_PROJECT_FOLDER_2_" ]]; then
-  Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_%/}"
-  Z_PROJECT_FOLDER_2=$(realpath "$Z_PROJECT_FOLDER_2_" 2>/dev/null)
-fi
-Z_PROJECT_SHORT_NAME_2=$(sed -n 's/^Z_PROJECT_SHORT_NAME_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PROJECT_REPO_2=$(sed -n 's/^Z_PROJECT_REPO_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PACKAGE_MANAGER_2=${$(sed -n 's/^Z_PACKAGE_MANAGER_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-npm};
-Z_CODE_EDITOR_2=${$(sed -n 's/^Z_CODE_EDITOR_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-code}
-Z_CLONE_2=$(sed -n 's/^Z_CLONE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_SETUP_2=$(sed -n 's/^Z_SETUP_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_RUN_2=${$(sed -n 's/^Z_RUN_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")dev}
-Z_RUN_STAGE_2=${$(sed -n 's/^Z_RUN_STAGE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")stage}
-Z_RUN_PROD_2=${$(sed -n 's/^Z_RUN_PROD_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")prod}
-Z_PRO_2=$(sed -n 's/^Z_PRO_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_TEST_2=${$(sed -n 's/^Z_TEST_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test}
-Z_COV_2=${$(sed -n 's/^Z_COV_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:coverage}
-Z_TEST_WATCH_2=${$(sed -n 's/^Z_TEST_WATCH_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:watch}
-Z_E2E_2=${$(sed -n 's/^Z_E2E_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:e2e}
-Z_E2EUI_2=${$(sed -n 's/^Z_E2EUI_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
-Z_PR_TEMPLATE_2=$(sed -n 's/^Z_PR_TEMPLATE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PR_REPLACE_2=$(sed -n 's/^Z_PR_REPLACE_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PR_APPEND_2=${$(sed -n 's/^Z_PR_APPEND_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
-Z_PR_RUN_TEST_2=$(sed -n 's/^Z_PR_RUN_TEST_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_GHA_INTERVAL_2=${$(sed -n 's/^Z_GHA_INTERVAL_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-10}
-Z_COMMIT_ADD_2=$(sed -n 's/^Z_COMMIT_ADD_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_DEFAULT_BRANCH_2=$(sed -n 's/^Z_DEFAULT_BRANCH_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_GHA_WORKFLOW_2=$(sed -n 's/^Z_GHA_WORKFLOW_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PUSH_ON_REFIX_2=$(sed -n 's/^Z_PUSH_ON_REFIX_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PRINT_README_2=${$(sed -n 's/^Z_PRINT_README_2=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
-
-# project 3 ========================================================================
-Z_PROJECT_FOLDER_3=""
-Z_PROJECT_FOLDER_3_=$(sed -n 's/^Z_PROJECT_FOLDER_3=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE"); Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_/#\~/$HOME}"
-if [[ -n "$Z_PROJECT_FOLDER_3_" ]]; then
-  Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_%/}"
-  Z_PROJECT_FOLDER_3=$(realpath "$Z_PROJECT_FOLDER_3_" 2>/dev/null)
-fi
-Z_PROJECT_SHORT_NAME_3=$(sed -n 's/^Z_PROJECT_SHORT_NAME_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PROJECT_REPO_3=$(sed -n 's/^Z_PROJECT_REPO_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PACKAGE_MANAGER_3=${$(sed -n 's/^Z_PACKAGE_MANAGER_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-npm};
-Z_CODE_EDITOR_3=${$(sed -n 's/^Z_CODE_EDITOR_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-code}
-Z_CLONE_3=$(sed -n 's/^Z_CLONE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_SETUP_3=$(sed -n 's/^Z_SETUP_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_RUN_3=${$(sed -n 's/^Z_RUN_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")dev}
-Z_RUN_STAGE_3=${$(sed -n 's/^Z_RUN_STAGE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")stage}
-Z_RUN_PROD_3=${$(sed -n 's/^Z_RUN_PROD_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")prod}
-Z_PRO_3=$(sed -n 's/^Z_PRO_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_TEST_3=${$(sed -n 's/^Z_TEST_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test}
-Z_COV_3=${$(sed -n 's/^Z_COV_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:coverage}
-Z_TEST_WATCH_3=${$(sed -n 's/^Z_TEST_WATCH_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:watch}
-Z_E2E_3=${$(sed -n 's/^Z_E2E_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:e2e}
-Z_E2EUI_3=${$(sed -n 's/^Z_E2EUI_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")test:e2e-ui}
-Z_PR_TEMPLATE_3=$(sed -n 's/^Z_PR_TEMPLATE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PR_REPLACE_3=$(sed -n 's/^Z_PR_REPLACE_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PR_APPEND_3=${$(sed -n 's/^Z_PR_APPEND_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
-Z_PR_RUN_TEST_3=$(sed -n 's/^Z_PR_RUN_TEST_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_GHA_INTERVAL_3=${$(sed -n 's/^Z_GHA_INTERVAL_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-10}
-Z_COMMIT_ADD_3=$(sed -n 's/^Z_COMMIT_ADD_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_DEFAULT_BRANCH_3=$(sed -n 's/^Z_DEFAULT_BRANCH_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_GHA_WORKFLOW_3=$(sed -n 's/^Z_GHA_WORKFLOW_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PUSH_ON_REFIX_3=$(sed -n 's/^Z_PUSH_ON_REFIX_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE)
-Z_PRINT_README_3=${$(sed -n 's/^Z_PRINT_README_3=\([^ ]*\)/\1/p' $PUMP_CONFIG_FILE):-0}
-
-Z_PROJECT_FOLDER=""
-Z_PROJECT_SHORT_NAME=""
-Z_PROJECT_REPO=""
-Z_PACKAGE_MANAGER=""
-Z_CODE_EDITOR=""
-Z_CLONE=""
-Z_SETUP=""
-Z_RUN=""
-Z_RUN_STAGE=""
-Z_RUN_PROD=""
-Z_PRO=""
-Z_TEST=""
-Z_COV=""
-Z_TEST_WATCH=""
-Z_E2E=""
-Z_E2EUI=""
-Z_PR_TEMPLATE=""
-Z_PR_REPLACE=""
-Z_PR_APPEND=""
-Z_PR_RUN_TEST=""
-Z_GHA_INTERVAL=""
-Z_COMMIT_ADD=""
-Z_DEFAULT_BRANCH=""
-Z_GHA_WORKFLOW=""
-Z_PUSH_ON_REFIX=""
-Z_PRINT_README=""
-
-PUMP_PAST_BRANCH=""
-
-ERROR_PROJ=0;
-ERROR_PROJ_1=0;
-ERROR_PROJ_2=0;
-ERROR_PROJ_3=0;
-
-bright_green_cor="\e[1m\e[38;5;151m"
-dark_gray_cor="\e[38;5;236m"
-
-solid_blue_cor="\e[34m"
-solid_cyan_cor="\e[36m"
-solid_green_cor="\e[32m"
-solid_yellow_cor="\e[33m"
-solid_magenta_cor="\e[35m"
-solid_red_cor="\e[31m"
-
-gray_cor="\e[38;5;252m"
-clear_cor="\e[0m"
-blue_cor="\e[94m"
-cyan_cor="\e[96m"
-green_cor="\e[92m"
-yellow_cor="\e[93m"
-magenta_cor="\e[95m"
-red_cor="\e[91m"
-pink_cor="\e[0;95m"
-purple_cor="\e[38;5;99m"
-
+_updated_config_key=""
 update_config_() {
   local key=$1
   local value=$2
@@ -601,10 +362,12 @@ update_config_() {
     # Linux (GNU sed)
     sed -i "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG_FILE"
   fi
-
   if [[ $? -eq 0 ]]; then
-    echo " ${gray_cor}updated $key in the config ${clear_cor}"
+    _updated_config_key="$key"
   fi
+  # if [[ $? -eq 0 ]]; then
+  #   echo " ${gray_cor}updated $key in the config ${clear_cor}"
+  # fi
 }
 
 input_name_() {
@@ -625,7 +388,7 @@ input_name_() {
 
 input_path_() {
   while true; do
-    typed_value=$(gum input --no-show-help --placeholder="${2:-$1}")
+    typed_value=$(gum input --no-show-help --placeholder="$1")
     if [[ $? -ne 0 ]]; then
       break
     fi
@@ -638,16 +401,16 @@ input_path_() {
 }
 
 check_proj_name_valid_() {
-  name=${1:-$Z_PROJECT_SHORT_NAME}
+  name=${1:-$Z_CURRENT_PROJECT_SHORT_NAME}
 
   invalid_proj_names=(
-    "yarn" "npm" "pnpm" "bun" "back"
-    "pro" "rev" "revs" "clone" "setup" "run" "test" "testw" "covc" "cov" "e2e" "e2eui" "recommit" "refix"
+    "yarn" "npm" "pnpm" "bun" "back" "add" "new" "remove" "rm" "install" "cd" "uninstall" "update" "init" "pushd" "popd" "ls" "dir" "ll"
+    "pro" "rev" "revs" "clone" "setup" "run" "test" "testw" "covc" "cov" "e2e" "e2eui" "recommit" "refix" "clear"
     "rdev" "dev" "stage" "prod" "gha" "pr" "push" "repush" "pushf" "add" "commit" "build" "i" "ig" "deploy" "fix" "format" "lint"
     "tsc" "start" "sbb" "sb" "renb" "co" "reseta" "clean" "delb" "prune" "discard" "restore"
-    "st" "gconf" "fetch" "pull" "glog" "gll" "glr" "reset" "reset1" "reset2" "reset3" "reset4" "reset5" "reset6"
+    "st" "gconf" "fetch" "pull" "glog" "gll" "glr" "reset" "resetw" "reset1" "reset2" "reset3" "reset4" "reset5" "reset6"
     "dtag" "tag" "tags" "pop" "stash" "stashes" "rebase" "merge" "rc" "conti" "mc" "chp" "chc" "abort"
-    "cl" "del" "help" "kill" "ll" "nver" "nlist" "path" "refresh" "pwd" "empty" "upgrade" "-q" "quiet" "skip" "-" "." ".."
+    "cl" "del" "help" "kill" "nver" "nlist" "path" "refresh" "pwd" "empty" "upgrade" "-h" "-q" "quiet" "skip" "-" "." ".."
   )
 
   if [[ " ${invalid_proj_names[@]} " =~ " $name " ]]; then
@@ -657,189 +420,6 @@ check_proj_name_valid_() {
     return 1
   fi
 }
-
-save_project_1_() {
-  if [[ -z "$Z_PROJECT_FOLDER_1_" ]]; then
-    echo ""
-    echo " type your project's folder path:"
-    typed_folder_1=$(input_path_ "$HOME/pump-my-shell" $Z_PROJECT_FOLDER_1_)
-    if [[ -n "$typed_folder_1" ]]; then
-      check_prj_folder_1_ "-" "$typed_folder_1";
-      if [[ $? -ne 0 ]]; then
-        Z_PROJECT_FOLDER_1_=""
-        return 1;
-      fi
-      echo "  $typed_folder_1"
-      # Z_PROJECT_FOLDER_1_=$typed_folder_1 - check_prj_folder_1_ will do this
-    else
-      return 1;
-    fi
-  fi
-
-  if [[ -z "$Z_PROJECT_SHORT_NAME_1" ]]; then
-    echo " type your project's abbreviated name (one short word):"
-    typed_name_1=$(input_name_ 10 "pump")
-    if [[ -n "$typed_name_1" ]]; then
-      if [[ "$typed_name_1" == "$Z_PROJECT_SHORT_NAME_2" || "$typed_name_1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        echo " project name already exists, please choose another one"
-        return 1;
-      fi
-      check_proj_name_valid_ "$typed_name_1"; if [[ $? -ne 0 ]]; then return 1; fi
-      echo "  $typed_name_1"
-      Z_PROJECT_SHORT_NAME_1=$typed_name_1
-    else
-      return 1;
-    fi
-  fi
-
-  if [[ -n "$typed_folder_1" || -n "$typed_name_1" ]]; then
-    if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
-      echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
-      return 1
-    fi
-
-    cp -R "$PUMP_CONFIG_FILE" "$PUMP_CONFIG_FILE.$PUMP_VERSION.X.bak"
-
-    # Update each key with its respective environment variable value
-    if [[ -n "$typed_folder_1" ]]; then
-      update_config_ "Z_PROJECT_FOLDER_1" "$typed_folder_1"
-    fi
-
-    if [[ -n "$typed_name_1" ]]; then
-      update_config_ "Z_PROJECT_SHORT_NAME_1" "$typed_name_1"
-    fi
-
-    echo ""
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo " now run${yellow_cor} refresh${clear_cor}, then run${yellow_cor} $Z_PROJECT_SHORT_NAME_1 ${clear_cor}"
-    else
-      echo " now run${yellow_cor} refresh ${clear_cor}"
-    fi
-    echo ""
-  fi
-}
-
-save_project_2_() {
-  if [[ -z "$Z_PROJECT_FOLDER_2_" ]]; then
-    echo ""
-    echo " type your project's folder path:"
-    typed_folder_2=$(input_path_ "$HOME/pump-my-shell" $Z_PROJECT_FOLDER_2_)
-    if [[ -n "$typed_folder_2" ]]; then
-      check_prj_folder_2_ "-" "$typed_folder_2";
-      if [[ $? -ne 0 ]]; then
-        Z_PROJECT_FOLDER_2_=""
-        return 1;
-      fi
-      echo "  $typed_folder_2"
-    else
-      return 1;
-    fi
-  fi
-
-  if [[ -z "$Z_PROJECT_SHORT_NAME_2" ]]; then
-    echo " type your project's abbreviated name (one short word):"
-    typed_name_2=$(input_name_ 10 "pump")
-    if [[ -n "$typed_name_2" ]]; then
-      if [[ "$typed_name_2" == "$Z_PROJECT_SHORT_NAME_1" || "$typed_name_2" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        echo " project name already exists, please choose another one"
-        return 1;
-      fi
-      check_proj_name_valid_ "$typed_name_2"; if [[ $? -ne 0 ]]; then return 1; fi
-      echo "  $typed_name_2"
-      Z_PROJECT_SHORT_NAME_2=$typed_name_2
-    else
-      return 1;
-    fi
-  fi
-
-  if [[ -n "$typed_folder_2" || -n "$typed_name_2" ]]; then
-    if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
-      echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
-      return 1
-    fi
-
-    cp -R "$PUMP_CONFIG_FILE" "$PUMP_CONFIG_FILE.$PUMP_VERSION.X.bak"
-
-    # Update each key with its respective environment variable value
-    if [[ -n "$typed_folder_2" ]]; then
-      update_config_ "Z_PROJECT_FOLDER_2" "$typed_folder_2"
-    fi
-
-    if [[ -n "$typed_name_2" ]]; then
-      update_config_ "Z_PROJECT_SHORT_NAME_2" "$typed_name_2"
-    fi
-
-    echo ""
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo " now run${yellow_cor} refresh${clear_cor}, then run${yellow_cor} $Z_PROJECT_SHORT_NAME_2 ${clear_cor}"
-    else
-      echo " now run${yellow_cor} refresh ${clear_cor}"
-    fi
-    echo ""
-  fi
-}
-
-save_project_3_() {
-  if [[ -z "$Z_PROJECT_FOLDER_3_" ]]; then
-    echo ""
-    echo " type your project's folder path:"
-    typed_folder_3=$(input_path_ "$HOME/pump-my-shell" $Z_PROJECT_FOLDER_3_)
-    if [[ -n "$typed_folder_3" ]]; then
-      check_prj_folder_3_ "-" "$typed_folder_3";
-      if [[ $? -ne 0 ]]; then
-        Z_PROJECT_FOLDER_1_=""
-        return 1;
-      fi
-      echo "  $typed_folder_3"
-    else
-      return 1;
-    fi
-  fi
-
-  if [[ -z "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    echo " type your project's abbreviated name (one short word):"
-    typed_name_3=$(input_name_ 10 "pump")
-    if [[ -n "$typed_name_3" ]]; then
-      if [[ "$typed_name_3" == "$Z_PROJECT_SHORT_NAME_1" || "$typed_name_3" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-        echo " project name already exists, please choose another one"
-        return 1;
-      fi
-      check_proj_name_valid_ "$typed_name_3"; if [[ $? -ne 0 ]]; then return 1; fi
-      echo "  $typed_name_3"
-      Z_PROJECT_SHORT_NAME_3=$typed_name_3
-    else
-      return 1;
-    fi
-  fi
-
-  if [[ -n "$typed_folder_3" || -n "$typed_name_3" ]]; then
-    if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
-      echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
-      return 1
-    fi
-
-    cp -R "$PUMP_CONFIG_FILE" "$PUMP_CONFIG_FILE.$PUMP_VERSION.X.bak"
-
-    # Update each key with its respective environment variable value
-    if [[ -n "$typed_folder_3" ]]; then
-      update_config_ "Z_PROJECT_FOLDER_3" "$typed_folder_3"
-    fi
-
-    if [[ -n "$typed_name_3" ]]; then
-      update_config_ "Z_PROJECT_SHORT_NAME_3" "$typed_name_3"
-    fi
-
-    echo ""
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo " now run${yellow_cor} refresh${clear_cor}, then run${yellow_cor} $Z_PROJECT_SHORT_NAME_3 ${clear_cor}"
-    else
-      echo " now run${yellow_cor} refresh ${clear_cor}"
-    fi
-    echo ""
-  fi
-}
-
-
 
 pause_output() {
   printf " "
@@ -871,9 +451,9 @@ pause_output() {
 help_line_() {
   word1=$1
   color=${2:-$gray_cor}
-  total_width1=${3:-68}
+  total_width1=${3:-72}
   word2=$4
-  total_width2=${5:-68}
+  total_width2=${5:-72}
 
   word_length1=${#word1}
   word_length2=${#word2}
@@ -903,7 +483,91 @@ help_line_() {
   else
   fi
 
-  echo "$color $help_line_line ${clear_cor}"
+  echo "${color} $help_line_line ${clear_cor}"
+}
+
+save_project_() {
+  if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+    echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
+    return 1
+  fi
+
+  local i="$1"
+
+  local folder="${Z_PROJECT_FOLDER[$i]}"
+  local name="${2:-${Z_PROJECT_SHORT_NAME[$i]}}"
+  local package_manager="${3:-${Z_PACKAGE_MANAGER[$i]}}"
+
+  local typed_folder=""
+  local typed_name=""
+  local choose_pkg=""
+
+  _updated_config_key=""
+
+  if [[ -z "$name" ]]; then
+    echo " type your project's abbreviated name (one short word):"
+    typed_name=$(input_name_ 10 "${name:-pump}")
+
+    # check for duplicates across other indices
+    for j in {1..10}; do
+      if [[ $j -ne $i && "${Z_PROJECT_SHORT_NAME[$j]}" == "$typed_name" ]]; then
+        echo " project name already exists, please choose another one"
+        return 1
+      fi
+    done
+
+    if [[ -n "$typed_name" ]]; then
+      check_proj_name_valid_ "$typed_name"
+      if [[ $? -ne 0 ]]; then return 1; fi
+      echo "  $typed_name"
+    else
+      return 1
+    fi
+  else
+    typed_name="$name"
+  fi
+
+  if [[ -z "$folder" ]]; then
+    echo ""
+    echo " type your project's folder path:"
+    typed_folder=$(input_path_ "${folder:-"$HOME/pump-my-shell"}")
+    if [[ -n "$typed_folder" ]]; then
+      check_prj_folder_ "$typed_folder"
+      if [ $? -ne 0 ]; then
+        Z_PROJECT_FOLDER[$i]=""
+        return 1
+      fi
+      echo "  $typed_folder"
+      update_config_ "Z_PROJECT_FOLDER_$i" "$typed_folder"
+      Z_PROJECT_FOLDER[$i]="$typed_folder"
+    else
+      return 1
+    fi
+  fi
+
+  if [[ -z "$package_manager" ]]; then
+    echo ""
+    choose_pkg=($(choose_one_ "choose package manager:" "npm" "yarn" "pnpm" "bun" "pip" "poetry" "poe"))
+    if [[ -n "$choose_pkg" ]]; then
+      echo "  $choose_pkg"
+      update_config_ "Z_PACKAGE_MANAGER_$i" "$choose_pkg"
+      Z_PACKAGE_MANAGER[$i]="$choose_pkg"
+    else
+      return 1
+    fi
+  fi
+
+  if [[ -n "$typed_name" ]]; then
+    update_config_ "Z_PROJECT_SHORT_NAME_$i" "$typed_name"
+    Z_PROJECT_SHORT_NAME[$i]="$typed_name"
+  fi
+
+  if [[ -n "$_updated_config_key" ]]; then
+    refresh
+    if [[ -n "$typed_name" ]]; then
+      echo " now run${yellow_cor} $typed_name ${clear_cor}"
+    fi
+  fi
 }
 
 help() {
@@ -917,29 +581,26 @@ help() {
     echo ""
   fi
 
-  if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
+  if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
     echo ""
-    echo "  your project is set to:${solid_blue_cor} $Z_PROJECT_SHORT_NAME${clear_cor} with${solid_magenta_cor} $Z_PACKAGE_MANAGER ${clear_cor}"
-    echo "  to switch project, type:${solid_blue_cor} pro${clear_cor} or${solid_blue_cor} pro -h${clear_cor} to see usage"
+    echo "  your project is set to:${solid_blue_cor} $Z_CURRENT_PROJECT_SHORT_NAME${clear_cor} with${solid_magenta_cor} $Z_CURRENT_PACKAGE_MANAGER ${clear_cor}"
   fi
 
   echo ""
   echo "  to learn more, visit:${blue_cor} https://github.com/fab1o/pump-my-shell/wiki ${clear_cor}"
 
-  check_prj_1_ -q
-  if [[ $ERROR_PROJ_1 -ne 0 ]]; then
+  check_prj_ 1
+  if [[ $? -ne 0 ]]; then
     echo ""
-    if [[ -z "$Z_PROJECT_FOLDER_1_" ]]; then
-      echo " let's configure your first project!"
-    fi
+    echo " let's configure your first project!"
     
-    save_project_1_
+    save_project_ 1
 
-    if [[ -z "$Z_PROJECT_FOLDER_1" || -z "$Z_PROJECT_SHORT_NAME_1" ]]; then
+    if [[ -z "${Z_PROJECT_FOLDER[1]}" || -z "${Z_PROJECT_SHORT_NAME[1]}" ]]; then
       echo " configure${solid_yellow_cor} $PUMP_CONFIG_FILE${clear_cor} as shown in the example below:"
       echo ""
-      echo " Z_PROJECT_FOLDER_1=${Z_PROJECT_FOLDER_1:-/Users/fab1o/Developer/pump-my-shell}"
-      echo " Z_PROJECT_SHORT_NAME_1=${Z_PROJECT_SHORT_NAME_1:-pump}"
+      echo " Z_PROJECT_FOLDER_1=${Z_PROJECT_FOLDER[1]:-"$HOME/pump-my-shell"}"
+      echo " Z_PROJECT_SHORT_NAME_1=${Z_PROJECT_SHORT_NAME[1]:-pump}"
       echo ""
       echo " then restart your terminal, then type${yellow_cor} help${clear_cor} again"
       echo ""
@@ -960,102 +621,105 @@ help() {
   echo ""
   help_line_ "project selection" "${solid_blue_cor}"
   echo ""
-  echo " ${solid_blue_cor} pro ${clear_cor}\t\t = switch project"
+  echo -e " ${solid_blue_cor} pro ${clear_cor}\t\t = set project"
 
-  if [[ -n "$Z_PROJECT_FOLDER_1" && -n "$Z_PROJECT_SHORT_NAME_1" ]] then
-    echo " ${solid_blue_cor} $Z_PROJECT_SHORT_NAME_1 ${clear_cor}$([ ${#Z_PROJECT_SHORT_NAME_1} -lt 5 ] && echo -e "\t\t = set project and cd $(shorten_path_ "$Z_PROJECT_FOLDER_1" 1 no)" || echo -e "\t = set project and cd $(shorten_path_ "$Z_PROJECT_FOLDER_1" 1)")";
-  fi
-  if [[ -n "$Z_PROJECT_FOLDER_2" && -n "$Z_PROJECT_SHORT_NAME_2" ]] then
-    echo " ${solid_blue_cor} $Z_PROJECT_SHORT_NAME_2 ${clear_cor}$([ ${#Z_PROJECT_SHORT_NAME_2} -lt 5 ] && echo -e "\t\t = set project and cd $(shorten_path_ "$Z_PROJECT_FOLDER_2" 1 no)" || echo -e "\t = set project and cd $(shorten_path_ "$Z_PROJECT_FOLDER_2" 1)")";
-  fi
-  if [[ -n "$Z_PROJECT_FOLDER_3" && -n "$Z_PROJECT_SHORT_NAME_3" ]] then
-    echo " ${solid_blue_cor} $Z_PROJECT_SHORT_NAME_3 ${clear_cor}$([ ${#Z_PROJECT_SHORT_NAME_3} -lt 5 ] && echo -e "\t\t = set project and cd $(shorten_path_ "$Z_PROJECT_FOLDER_3" 1 no)" || echo -e "\t = set project and cd $(shorten_path_ "$Z_PROJECT_FOLDER_3" 1)")";
-  fi
+  for i in {1..10}; do
+    if [[ -n "${Z_PROJECT_FOLDER[$i]}" && -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      local short="${Z_PROJECT_SHORT_NAME[$i]}"
+      local folder="${Z_PROJECT_FOLDER[$i]}"
+      local shortened_path=$(shorten_path_ "$folder" 1)
+      local tab=$([[ ${#short} -lt 5 ]] && echo -e "\t\t" || echo -e "\t")
+      echo " ${solid_blue_cor} $short ${clear_cor}${tab} = set project and cd $shortened_path"
+    fi
+  done
 
   echo ""
   help_line_ "project" "${blue_cor}"
   echo ""
-  echo " ${blue_cor} clone ${clear_cor}\t = clone project or branch"
-  _setup=${Z_SETUP:-$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")setup}
-  if (( ${#_setup} > 50 )); then
-    echo " ${blue_cor} setup ${clear_cor}\t = ${_setup[1,50]}"
+  echo -e " ${blue_cor} clone ${clear_cor}\t = clone project or branch"
+  
+  _setup=${Z_CURRENT_SETUP:-$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")setup}
+
+  max=53
+  if (( ${#_setup} > $max )); then
+    # echo -e " ${blue_cor} setup ${clear_cor}\t = ${_setup[1,$max]}"
+    echo -e " ${blue_cor} setup ${clear_cor}\t = execute  Z_SETUP"
   else
-    echo " ${blue_cor} setup ${clear_cor}\t = $_setup"
+    echo -e " ${blue_cor} setup ${clear_cor}\t = $_setup"
   fi
-  if (( ${#Z_RUN} > 50 )); then
-    echo " ${blue_cor} run ${clear_cor}\t\t = ${Z_RUN[1,50]}"
+  if (( ${#Z_CURRENT_RUN} > $max )); then
+    echo -e " ${blue_cor} run ${clear_cor}\t\t = execute  Z_RUN"
   else
-    echo " ${blue_cor} run ${clear_cor}\t\t = $Z_RUN"
+    echo -e " ${blue_cor} run ${clear_cor}\t\t = $Z_CURRENT_RUN"
   fi
-  if (( ${#Z_RUN_STAGE} > 50 )); then
-    echo " ${blue_cor} run stage ${clear_cor}\t = ${Z_RUN_STAGE[1,50]}"
+  if (( ${#Z_CURRENT_RUN_STAGE} > $max )); then
+    echo -e " ${blue_cor} run stage ${clear_cor}\t = execute  Z_RUN_STAGE"
   else
-    echo " ${blue_cor} run stage ${clear_cor}\t = $Z_RUN_STAGE"
+    echo -e " ${blue_cor} run stage ${clear_cor}\t = $Z_CURRENT_RUN_STAGE"
   fi
-  if (( ${#Z_RUN_PROD} > 50 )); then
-    echo " ${blue_cor} run prod ${clear_cor}\t = ${Z_RUN_PROD[1,50]}"
+  if (( ${#Z_CURRENT_RUN_PROD} > $max )); then
+    echo -e " ${blue_cor} run prod ${clear_cor}\t = execute  Z_RUN_PROD"
   else
-    echo " ${blue_cor} run prod ${clear_cor}\t = $Z_RUN_PROD"
+    echo -e " ${blue_cor} run prod ${clear_cor}\t = $Z_CURRENT_RUN_PROD"
   fi
 
   echo ""
   help_line_ "code review" "${cyan_cor}"
   echo ""
-  echo " ${cyan_cor} rev ${clear_cor}\t\t = select branch to review"
-  echo " ${cyan_cor} rev \$1${clear_cor}\t = open a review"
-  echo " ${cyan_cor} revs ${clear_cor}\t\t = list existing reviews"
-  echo " ${cyan_cor} prune revs ${clear_cor}\t = delete merged reviews"
+  echo -e " ${cyan_cor} rev ${clear_cor}\t\t = open a pull request for review"
+  echo -e " ${cyan_cor} revs ${clear_cor}\t\t = list existing reviews"
+  echo -e " ${cyan_cor} prune revs ${clear_cor}\t = delete merged reviews"
 
   pause_output  # Wait for user input to continue
   if [[ $? -ne 0 ]]; then
     return 0;
   fi
 
-  help_line_ "$Z_PACKAGE_MANAGER" "${solid_magenta_cor}"
+  help_line_ "$Z_CURRENT_PACKAGE_MANAGER" "${solid_magenta_cor}"
   echo ""
-  echo " ${solid_magenta_cor} build ${clear_cor}\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")build"
-  echo " ${solid_magenta_cor} deploy ${clear_cor}\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")deploy"
-  echo " ${solid_magenta_cor} fix ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format + lint"
-  echo " ${solid_magenta_cor} format ${clear_cor}\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format"
-  echo " ${solid_magenta_cor} i ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")install"
-  echo " ${solid_magenta_cor} ig ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")install global"
-  echo " ${solid_magenta_cor} lint ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
-  echo " ${solid_magenta_cor} rdev ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")dev"
-  echo " ${solid_magenta_cor} sb ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook"
-  echo " ${solid_magenta_cor} sbb ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook:build"
-  echo " ${solid_magenta_cor} start ${clear_cor}\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")start"
-  echo " ${solid_magenta_cor} tsc ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")tsc"
+  echo -e " ${solid_magenta_cor} build ${clear_cor}\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")build"
+  echo -e " ${solid_magenta_cor} deploy ${clear_cor}\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")deploy"
+  echo -e " ${solid_magenta_cor} fix ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format + lint"
+  echo -e " ${solid_magenta_cor} format ${clear_cor}\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format"
+  echo -e " ${solid_magenta_cor} i ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")install"
+  echo -e " ${solid_magenta_cor} ig ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")install global"
+  echo -e " ${solid_magenta_cor} lint ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
+  echo -e " ${solid_magenta_cor} rdev ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")dev"
+  echo -e " ${solid_magenta_cor} sb ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook"
+  echo -e " ${solid_magenta_cor} sbb ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook:build"
+  echo -e " ${solid_magenta_cor} start ${clear_cor}\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")start"
+  echo -e " ${solid_magenta_cor} tsc ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")tsc"
   
   echo ""
-  help_line_ "test $Z_PROJECT_SHORT_NAME" "${magenta_cor}"
+  help_line_ "test $Z_CURRENT_PROJECT_SHORT_NAME" "${magenta_cor}"
   echo ""
-  if [[ "$Z_COV" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage" ]]; then
-    echo " ${solid_magenta_cor} ${Z_PACKAGE_MANAGER:0:1}cov ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage"
+  if [[ "$Z_CURRENT_COV" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage" ]]; then
+    echo -e " ${solid_magenta_cor} ${Z_CURRENT_PACKAGE_MANAGER:0:1}cov ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage"
   fi
-  if [[ "$Z_E2E" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e" ]]; then
-    echo " ${solid_magenta_cor} ${Z_PACKAGE_MANAGER:0:1}e2e ${clear_cor}\t\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e"
+  if [[ "$Z_CURRENT_E2E" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e" ]]; then
+    echo -e " ${solid_magenta_cor} ${Z_CURRENT_PACKAGE_MANAGER:0:1}e2e ${clear_cor}\t\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e"
   fi
-  if [[ "$Z_E2EUI" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui" ]]; then
-    echo " ${solid_magenta_cor} ${Z_PACKAGE_MANAGER:0:1}e2eui ${clear_cor}\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui"
+  if [[ "$Z_CURRENT_E2EUI" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui" ]]; then
+    echo -e " ${solid_magenta_cor} ${Z_CURRENT_PACKAGE_MANAGER:0:1}e2eui ${clear_cor}\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui"
   fi
-  if [[ "$Z_TEST" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test" ]]; then
-    echo " ${solid_magenta_cor} ${Z_PACKAGE_MANAGER:0:1}test ${clear_cor}\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test"
+  if [[ "$Z_CURRENT_TEST" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test" ]]; then
+    echo -e " ${solid_magenta_cor} ${Z_CURRENT_PACKAGE_MANAGER:0:1}test ${clear_cor}\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test"
   fi
-  if [[ "$Z_TEST_WATCH" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch" ]]; then
-    echo " ${solid_magenta_cor} ${Z_PACKAGE_MANAGER:0:1}testw ${clear_cor}\t = $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch"
+  if [[ "$Z_CURRENT_TEST_WATCH" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch" ]]; then
+    echo -e " ${solid_magenta_cor} ${Z_CURRENT_PACKAGE_MANAGER:0:1}testw ${clear_cor}\t = $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch"
   fi
-  echo " ${magenta_cor} cov ${clear_cor}\t\t = $Z_COV"
-  echo " ${magenta_cor} e2e ${clear_cor}\t\t = $Z_E2E"
-  echo " ${magenta_cor} e2eui ${clear_cor}\t = $Z_E2EUI"
-  echo " ${magenta_cor} test ${clear_cor}\t\t = $Z_TEST"
-  echo " ${magenta_cor} testw ${clear_cor}\t = $Z_TEST_WATCH"
+  echo -e " ${magenta_cor} cov ${clear_cor}\t\t = $Z_CURRENT_COV"
+  echo -e " ${magenta_cor} e2e ${clear_cor}\t\t = $Z_CURRENT_E2E"
+  echo -e " ${magenta_cor} e2eui ${clear_cor}\t = $Z_CURRENT_E2EUI"
+  echo -e " ${magenta_cor} test ${clear_cor}\t\t = $Z_CURRENT_TEST"
+  echo -e " ${magenta_cor} testw ${clear_cor}\t = $Z_CURRENT_TEST_WATCH"
 
   echo ""
   help_line_ "git" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} gconf ${clear_cor}\t = git config"
-  echo " ${solid_cyan_cor} gha ${clear_cor}\t\t = view last workflow run"
-  echo " ${solid_cyan_cor} st ${clear_cor}\t\t = git status"
+  echo -e " ${solid_cyan_cor} gconf ${clear_cor}\t = git config"
+  echo -e " ${solid_cyan_cor} gha ${clear_cor}\t\t = view last workflow run"
+  echo -e " ${solid_cyan_cor} st ${clear_cor}\t\t = git status"
   
   pause_output  # Wait for user input to continue
   if [[ $? -ne 0 ]]; then
@@ -1064,37 +728,37 @@ help() {
 
   help_line_ "git branch" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} back ${clear_cor}\t\t = go back to previous branch"
-  echo " ${solid_cyan_cor} co ${clear_cor}\t\t = switch branch"
-  echo " ${solid_cyan_cor} co \$1 \$2 ${clear_cor}\t = create branch off of \$2"
-  echo " ${solid_cyan_cor} dev ${clear_cor}\t\t = switch to develop or dev"
-  echo " ${solid_cyan_cor} main ${clear_cor}\t\t = switch to master or main"
-  echo " ${solid_cyan_cor} renb \$1${clear_cor}\t = rename branch"
-  echo " ${solid_cyan_cor} stage ${clear_cor}\t = switch to staging or stage"
+  echo -e " ${solid_cyan_cor} back ${clear_cor}\t\t = go back to previous branch or folder"
+  echo -e " ${solid_cyan_cor} co ${clear_cor}\t\t = switch branch"
+  echo -e " ${solid_cyan_cor} co <b> <base> ${clear_cor} = create branch off of base branch"
+  echo -e " ${solid_cyan_cor} dev ${clear_cor}\t\t = switch to develop or dev"
+  echo -e " ${solid_cyan_cor} main ${clear_cor}\t\t = switch to master or main"
+  echo -e " ${solid_cyan_cor} renb <b>${clear_cor}\t = rename branch"
+  echo -e " ${solid_cyan_cor} stage ${clear_cor}\t = switch to staging or stage"
 
   echo ""
   help_line_ "git clean" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} clean${clear_cor}\t\t = clean + restore"
-  echo " ${solid_cyan_cor} delb ${clear_cor}\t\t = delete branches"
-  echo " ${solid_cyan_cor} discard ${clear_cor}\t = reset local changes"
-  echo " ${solid_cyan_cor} prune ${clear_cor}\t = prune branches and tags"
-  echo " ${solid_cyan_cor} reset1 ${clear_cor}\t = reset soft 1 commit"
-  echo " ${solid_cyan_cor} reset2 ${clear_cor}\t = reset soft 2 commits"
-  echo " ${solid_cyan_cor} reset3 ${clear_cor}\t = reset soft 3 commits"
-  echo " ${solid_cyan_cor} reset4 ${clear_cor}\t = reset soft 4 commits"
-  echo " ${solid_cyan_cor} reset5 ${clear_cor}\t = reset soft 5 commits"
-  echo " ${solid_cyan_cor} reseta ${clear_cor}\t = reset hard origin + clean"
-  echo " ${solid_cyan_cor} restore ${clear_cor}\t = undo edits since last commit"
+  echo -e " ${solid_cyan_cor} clean${clear_cor}\t\t = clean + restore"
+  echo -e " ${solid_cyan_cor} delb ${clear_cor}\t\t = delete branches"
+  echo -e " ${solid_cyan_cor} discard ${clear_cor}\t = reset local changes"
+  echo -e " ${solid_cyan_cor} prune ${clear_cor}\t = prune branches and tags"
+  echo -e " ${solid_cyan_cor} reset1 ${clear_cor}\t = reset soft 1 commit"
+  echo -e " ${solid_cyan_cor} reset2 ${clear_cor}\t = reset soft 2 commits"
+  echo -e " ${solid_cyan_cor} reset3 ${clear_cor}\t = reset soft 3 commits"
+  echo -e " ${solid_cyan_cor} reset4 ${clear_cor}\t = reset soft 4 commits"
+  echo -e " ${solid_cyan_cor} reset5 ${clear_cor}\t = reset soft 5 commits"
+  echo -e " ${solid_cyan_cor} reseta ${clear_cor}\t = reset hard origin + clean"
+  echo -e " ${solid_cyan_cor} restore ${clear_cor}\t = undo edits since last commit"
   
   echo ""
   help_line_ "git log" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} glog ${clear_cor}\t\t = git log"
-  echo " ${solid_cyan_cor} gll ${clear_cor}\t\t = list branches"
-  echo " ${solid_cyan_cor} gll \$1 ${clear_cor}\t = list branches matching \$1"
-  echo " ${solid_cyan_cor} glr ${clear_cor}\t\t = list remote branches"
-  echo " ${solid_cyan_cor} glr \$1 ${clear_cor}\t = list remote branches matching \$1"
+  echo -e " ${solid_cyan_cor} glog ${clear_cor}\t\t = git log"
+  echo -e " ${solid_cyan_cor} gll ${clear_cor}\t\t = list branches"
+  echo -e " ${solid_cyan_cor} gll <b> ${clear_cor}\t = list branches matching branch"
+  echo -e " ${solid_cyan_cor} glr ${clear_cor}\t\t = list remote branches"
+  echo -e " ${solid_cyan_cor} glr <b> ${clear_cor}\t = list remote branches matching branch"
 
   pause_output  # Wait for user input to continue
   if [[ $? -ne 0 ]]; then
@@ -1103,33 +767,33 @@ help() {
 
   help_line_ "git pull" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} fetch ${clear_cor}\t = fetch from origin"
-  echo " ${solid_cyan_cor} pull ${clear_cor}\t\t = pull all branches from origin"
-  echo " ${solid_cyan_cor} pull tags${clear_cor}\t = pull all tags from origin"
+  echo -e " ${solid_cyan_cor} fetch ${clear_cor}\t = fetch from origin"
+  echo -e " ${solid_cyan_cor} pull ${clear_cor}\t\t = pull all branches from origin"
+  echo -e " ${solid_cyan_cor} pull tags${clear_cor}\t = pull all tags from origin"
 
   echo ""
   help_line_ "git push" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} add ${clear_cor}\t\t = add files to index"
-  echo " ${solid_cyan_cor} commit ${clear_cor}\t = open commit wizard"
-  echo " ${solid_cyan_cor} commit \$1${clear_cor}\t = commit message"
-  echo " ${solid_cyan_cor} pr ${clear_cor}\t\t = create pull request"
-  echo " ${solid_cyan_cor} push ${clear_cor}\t\t = push all no-verify to origin"
-  echo " ${solid_cyan_cor} pushf ${clear_cor}\t = push force all to origin"
+  echo -e " ${solid_cyan_cor} add ${clear_cor}\t\t = add files to index"
+  echo -e " ${solid_cyan_cor} commit ${clear_cor}\t = open commit wizard"
+  echo -e " ${solid_cyan_cor} commit <m>${clear_cor}\t = commit message"
+  echo -e " ${solid_cyan_cor} pr ${clear_cor}\t\t = create pull request"
+  echo -e " ${solid_cyan_cor} push ${clear_cor}\t\t = push all no-verify to origin"
+  echo -e " ${solid_cyan_cor} pushf ${clear_cor}\t = push force all to origin"
   
   echo ""
   help_line_ "git rebase" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} abort${clear_cor}\t\t = abort rebase/merge/chp"
-  echo " ${solid_cyan_cor} chc ${clear_cor}\t\t = continue cherry-pick"
-  echo " ${solid_cyan_cor} chp ${clear_cor}\t\t = cherry-pick commit"
-  echo " ${solid_cyan_cor} conti ${clear_cor}\t = continue rebase/merge/chp"
-  echo " ${solid_cyan_cor} mc ${clear_cor}\t\t = continue merge"
-  echo " ${solid_cyan_cor} merge ${clear_cor}\t = merge from $(git config --get init.defaultBranch) branch"
-  echo " ${solid_cyan_cor} merge \$1 ${clear_cor}\t = merge from branch"
-  echo " ${solid_cyan_cor} rc ${clear_cor}\t\t = continue rebase"
-  echo " ${solid_cyan_cor} rebase ${clear_cor}\t = rebase from $(git config --get init.defaultBranch) branch"
-  echo " ${solid_cyan_cor} rebase \$1 ${clear_cor}\t = rebase from branch"
+  echo -e " ${solid_cyan_cor} abort${clear_cor}\t\t = abort rebase/merge/chp"
+  echo -e " ${solid_cyan_cor} chc ${clear_cor}\t\t = continue cherry-pick"
+  echo -e " ${solid_cyan_cor} chp ${clear_cor}\t\t = cherry-pick commit"
+  echo -e " ${solid_cyan_cor} conti ${clear_cor}\t = continue rebase/merge/chp"
+  echo -e " ${solid_cyan_cor} mc ${clear_cor}\t\t = continue merge"
+  echo -e " ${solid_cyan_cor} merge ${clear_cor}\t = merge from $(git config --get init.defaultBranch) branch"
+  echo -e " ${solid_cyan_cor} merge <b> ${clear_cor}\t = merge from branch"
+  echo -e " ${solid_cyan_cor} rc ${clear_cor}\t\t = continue rebase"
+  echo -e " ${solid_cyan_cor} rebase ${clear_cor}\t = rebase from $(git config --get init.defaultBranch) branch"
+  echo -e " ${solid_cyan_cor} rebase <b> ${clear_cor}\t = rebase from branch"
 
   pause_output  # Wait for user input to continue
   if [[ $? -ne 0 ]]; then
@@ -1138,512 +802,365 @@ help() {
   
   help_line_ "git stash" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} pop ${clear_cor}\t\t = stash pop index"
-  echo " ${solid_cyan_cor} stash ${clear_cor}\t = stash unnamed"
-  echo " ${solid_cyan_cor} stash \$1 ${clear_cor}\t = stash with name"
-  echo " ${solid_cyan_cor} stashes ${clear_cor}\t = list all stashes"
+  echo -e " ${solid_cyan_cor} pop ${clear_cor}\t\t = stash pop index"
+  echo -e " ${solid_cyan_cor} stash ${clear_cor}\t = stash unnamed"
+  echo -e " ${solid_cyan_cor} stash <name> ${clear_cor}  = stash with name"
+  echo -e " ${solid_cyan_cor} stashes ${clear_cor}\t = list all stashes"
 
   echo ""
   help_line_ "git tags" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_cyan_cor} dtag ${clear_cor}\t\t = delete tag remotely"
-  echo " ${solid_cyan_cor} tag ${clear_cor}\t\t = create tag remotely"
-  echo " ${solid_cyan_cor} tags ${clear_cor}\t\t = list latest tags"
-  echo " ${solid_cyan_cor} tags 1 ${clear_cor}\t = display latest tag"
+  echo -e " ${solid_cyan_cor} dtag ${clear_cor}\t\t = delete tag remotely"
+  echo -e " ${solid_cyan_cor} tag ${clear_cor}\t\t = create tag remotely"
+  echo -e " ${solid_cyan_cor} tags ${clear_cor}\t\t = list latest tags"
+  echo -e " ${solid_cyan_cor} tags 1 ${clear_cor}\t = display latest tag"
 
   echo ""
   help_line_ "general" "${solid_cyan_cor}"
   echo ""
-  echo " ${solid_yellow_cor} cl ${clear_cor}\t\t = clear"
-  echo " ${solid_yellow_cor} del ${clear_cor}\t\t = delete utility"
-  echo " ${solid_yellow_cor} help ${clear_cor}\t\t = display this help"
-  echo " ${solid_yellow_cor} hg \$1 ${clear_cor}\t = history | grep"
-  echo " ${solid_yellow_cor} kill \$1 ${clear_cor}\t = kill port"
-  echo " ${solid_yellow_cor} ll ${clear_cor}\t\t = ls -laF"
-  echo " ${solid_yellow_cor} nver ${clear_cor}\t\t = node version"
-  echo " ${solid_yellow_cor} nlist ${clear_cor}\t = npm list global"
-  echo " ${solid_yellow_cor} path ${clear_cor}\t\t = echo \$PATH"
-  echo " ${solid_yellow_cor} refresh ${clear_cor}\t = source .zshrc"
-  echo " ${solid_yellow_cor} upgrade ${clear_cor}\t = upgrade pump + zsh + omp"
+  echo -e " ${solid_yellow_cor} cl ${clear_cor}\t\t = clear"
+  echo -e " ${solid_yellow_cor} del ${clear_cor}\t\t = delete utility"
+  echo -e " ${solid_yellow_cor} help ${clear_cor}\t\t = display this help"
+  echo -e " ${solid_yellow_cor} hg <text> ${clear_cor}\t = history | grep text"
+  echo -e " ${solid_yellow_cor} kill <port> ${clear_cor}\t = kill port"
+  echo -e " ${solid_yellow_cor} ll ${clear_cor}\t\t = ls -laF"
+  echo -e " ${solid_yellow_cor} nver ${clear_cor}\t\t = node version"
+  echo -e " ${solid_yellow_cor} nlist ${clear_cor}\t = npm list global"
+  echo -e " ${solid_yellow_cor} path ${clear_cor}\t\t = echo \$PATH"
+  echo -e " ${solid_yellow_cor} refresh ${clear_cor}\t = source .zshrc"
+  echo -e " ${solid_yellow_cor} upgrade ${clear_cor}\t = upgrade pump + zsh + omp"
   echo ""
-  help_line_ "multi-step tasks" "${pink_cor}"
+  help_line_ "multi-step task" "${pink_cor}"
   echo ""
-  echo " ${pink_cor} covc ${clear_cor}\t\t = compare test coverage with another branch"
-  echo " ${pink_cor} refix ${clear_cor}\t = reset last commit, run fix then re-commit/push"
-  echo " ${pink_cor} recommit ${clear_cor}\t = reset last commit then re-commit all changes"
-  echo " ${pink_cor} repush ${clear_cor}\t = reset last commit then re-push all changes"
-  echo " ${pink_cor} rev ${clear_cor}\t\t = select branch to review"
+  echo -e " ${pink_cor} cov <b> ${clear_cor}\t = compare test coverage with another branch"
+  echo -e " ${pink_cor} refix ${clear_cor}\t = reset last commit, run fix then re-commit/push"
+  echo -e " ${pink_cor} recommit ${clear_cor}\t = reset last commit then re-commit changes"
+  echo -e " ${pink_cor} repush ${clear_cor}\t = reset last commit then re-push changes"
+  echo -e " ${pink_cor} rev ${clear_cor}\t\t = open a pull request for review"
   echo ""
 }
 
-check_prj_folder_1_() {
-  ERROR_PROJ_1=0;
-
-  if [[ -z "$Z_PROJECT_FOLDER_1" || -n "$2" ]]; then
-    if [[ -n "$2" ]]; then
-      Z_PROJECT_FOLDER_1_="$2"
-    else
-      if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
-        echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
-        return 1
-      fi
-      Z_PROJECT_FOLDER_1_=$(sed -n 's/^Z_PROJECT_FOLDER_1=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE");
-      Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_/#\~/$HOME}"
-    fi
-    if [[ -z "$Z_PROJECT_FOLDER_1_" ]]; then
-      if [[ "$1" != "-q" ]]; then
-        echo "${red_cor} error: project folder not found ${clear_cor}";
-      fi
-      ERROR_PROJ_1=1
-    else
-      Z_PROJECT_FOLDER_1_="${Z_PROJECT_FOLDER_1_%/}"
-      Z_PROJECT_FOLDER_1=$(realpath "$Z_PROJECT_FOLDER_1_" 2>/dev/null)
-      if [[ -z "$Z_PROJECT_FOLDER_1" ]]; then
-        #echo "mkdir -p $Z_PROJECT_FOLDER_1_"
-        mkdir -p "$Z_PROJECT_FOLDER_1_" &>/dev/null
-        if [ $? -eq 0 ]; then
-          Z_PROJECT_FOLDER_1=$(realpath $Z_PROJECT_FOLDER_1_);
-          if [[ -z "$Z_PROJECT_FOLDER_1" ]]; then
-            ERROR_PROJ_1=2
-          fi
-        else
-          if [[ "$1" != " skip" ]]; then
-            echo "${red_cor} cannot establish path $Z_PROJECT_FOLDER_1_ ${clear_cor}";
-          fi
-          ERROR_PROJ_1=2
-        fi
-      fi
-    fi
+check_prj_folder_() {
+  local _folder="$1"
+  
+  if [[ -n "$_folder" ]]; then
+    edited_folder="${_folder/#\~/$HOME}"
+    [[ -n "$edited_folder" ]] && _folder="$edited_folder"
   fi
 
-  return $ERROR_PROJ_1;
-}
+  [[ -n "$_folder" ]] && _folder="${_folder%/}"
+  [[ -n "$_folder" ]] && realfolder=$(realpath "$_folder" 2>/dev/null)
 
-check_prj_folder_2_() {
-  ERROR_PROJ_2=0;
+  [[ -z "$realfolder" ]] && mkdir -p "$_folder" &>/dev/null && realfolder=$(realpath "$_folder" 2>/dev/null)
 
-  if [[ -z "$Z_PROJECT_FOLDER_2" || -n "$2" ]]; then
-    if [[ -n "$2" ]]; then
-      Z_PROJECT_FOLDER_2_="$2"
-    else
-      if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
-        echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
-        return 1
-      fi
-      Z_PROJECT_FOLDER_2_=$(sed -n 's/^Z_PROJECT_FOLDER_2=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE");
-      Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_/#\~/$HOME}"
-    fi
-    if [[ -z "$Z_PROJECT_FOLDER_2_" ]]; then
-      if [[ "$1" != "-q" ]]; then
-        echo "${red_cor} error: project folder not found ${clear_cor}";
-      fi
-      ERROR_PROJ_2=1
-    else
-      Z_PROJECT_FOLDER_2_="${Z_PROJECT_FOLDER_2_%/}"
-      Z_PROJECT_FOLDER_2=$(realpath "$Z_PROJECT_FOLDER_2_" 2>/dev/null)
-      if [[ -z "$Z_PROJECT_FOLDER_2" ]]; then
-        #echo "mkdir -p $Z_PROJECT_FOLDER_2_"
-        mkdir -p "$Z_PROJECT_FOLDER_2_" &>/dev/null
-        if [ $? -eq 0 ]; then
-          Z_PROJECT_FOLDER_2=$(realpath $Z_PROJECT_FOLDER_2_);
-          if [[ -z "$Z_PROJECT_FOLDER_2" ]]; then
-            ERROR_PROJ_2=2
-          fi
-        else
-          if [[ "$1" != " skip" ]]; then
-            echo "${red_cor} cannot establish path $Z_PROJECT_FOLDER_2_ ${clear_cor}";
-          fi
-          ERROR_PROJ_2=2
-        fi
-      fi
-    fi
+  if [[ -z "$realfolder" ]]; then
+    return 1
   fi
 
-  return $ERROR_PROJ_2;
+  return 0;
 }
 
-check_prj_folder_3_() {
-  ERROR_PROJ_3=0;
+check_prj_() {
+  local i="$1"
+  local short_name="${Z_PROJECT_SHORT_NAME[$i]}"
+  local folder="${Z_PROJECT_FOLDER[$i]}"
 
-  if [[ -z "$Z_PROJECT_FOLDER_3" || -n "$2" ]]; then
-    if [[ -n "$2" ]]; then
-      Z_PROJECT_FOLDER_3_="$2"
-    else
-      if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
-        echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
-        return 1
-      fi
-      Z_PROJECT_FOLDER_3_=$(sed -n 's/^Z_PROJECT_FOLDER_3=\([^ ]*\)/\1/p' "$PUMP_CONFIG_FILE");
-      Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_/#\~/$HOME}"
-    fi
-    if [[ -z "$Z_PROJECT_FOLDER_3_" ]]; then
-      if [[ "$1" != "-q" ]]; then
-        echo "${red_cor} error: project folder not found ${clear_cor}";
-      fi
-      ERROR_PROJ_3=1
-    else
-      Z_PROJECT_FOLDER_3_="${Z_PROJECT_FOLDER_3_%/}"
-      Z_PROJECT_FOLDER_3=$(realpath "$Z_PROJECT_FOLDER_3_" 2>/dev/null)
-      if [[ -z "$Z_PROJECT_FOLDER_3" ]]; then
-        #echo "mkdir -p $Z_PROJECT_FOLDER_3_"
-        mkdir -p "$Z_PROJECT_FOLDER_3_" &>/dev/null
-        if [ $? -eq 0 ]; then
-          Z_PROJECT_FOLDER_3=$(realpath $Z_PROJECT_FOLDER_3_);
-          if [[ -z "$Z_PROJECT_FOLDER_3" ]]; then
-            ERROR_PROJ_3=2
-          fi
-        else
-          if [[ "$1" != " skip" ]]; then
-            echo "${red_cor} cannot establish path $Z_PROJECT_FOLDER_3_ ${clear_cor}";
-          fi
-          ERROR_PROJ_3=2
-        fi
-      fi
-    fi
+  if [[ -z "$folder" ]]; then
+    return 1;
   fi
 
-  return $ERROR_PROJ_3;
-}
-
-check_prj_1_() {
-  ERROR_PROJ_1=0;
-
-  check_prj_folder_1_ "$1" "$2"
-  ERROR_PROJ_1=$?
-
-  if [[ -z "$Z_PROJECT_SHORT_NAME_1" ]]; then
-    if [[ "$1" != "-q" ]]; then
-      echo "${red_cor} error: not found Z_PROJECT_SHORT_NAME_1= ${clear_cor}";
-    fi
-    ERROR_PROJ_1=1
+  check_prj_folder_ $folder
+  if [ $? -ne 0 ]; then
+    return 1;
   fi
 
-  return $ERROR_PROJ_1;
+  return 0;
 }
 
-check_prj_2_() {
-  ERROR_PROJ_2=0
+clear_project_() {
+  i="$1"
 
-  check_prj_folder_2_ "$1" "$2"
-  ERROR_PROJ_2=$?
+  $Z_PROJECT_SHORT_NAME[$i]=""
+  $Z_PROJECT_FOLDER[$i]=""
+  $Z_PROJECT_REPO[$i]=""
+  $Z_PACKAGE_MANAGER[$i]=""
+  $Z_CODE_EDITOR[$i]=""
+  $Z_CLONE[$i]=""
+  $Z_SETUP[$i]=""
+  $Z_RUN[$i]=""
+  $Z_RUN_STAGE[$i]=""
+  $Z_RUN_PROD[$i]=""
+  $Z_PRO[$i]=""
+  $Z_TEST[$i]=""
+  $Z_COV[$i]=""
+  $Z_TEST_WATCH[$i]=""
+  $Z_E2E[$i]=""
+  $Z_E2EUI[$i]=""
+  $Z_PR_TEMPLATE[$i]=""
+  $Z_PR_REPLACE[$i]=""
+  $Z_PR_APPEND[$i]=""
+  $Z_PR_RUN_TEST[$i]=""
+  $Z_GHA_INTERVAL[$i]=""
+  $Z_COMMIT_ADD[$i]=""
+  $Z_GHA_WORKFLOW[$i]=""
+  $Z_CURRENT_PUSH_ON_REFIX=""
+  $Z_DEFAULT_BRANCH[$i]=""
+  $Z_PRINT_README[$i]=""
+}
 
-  if [[ -z "$Z_PROJECT_SHORT_NAME_2" ]]; then
-    if [[ "$1" != "-q" ]]; then
-      echo "${red_cor} error: not found Z_PROJECT_SHORT_NAME_2= ${clear_cor}";
+clear_current_project_() {
+  Z_CURRENT_PROJECT_FOLDER=""
+  Z_CURRENT_PROJECT_SHORT_NAME=""
+  Z_CURRENT_PROJECT_REPO=""
+  Z_CURRENT_PACKAGE_MANAGER=""
+  Z_CURRENT_CODE_EDITOR=""
+  Z_CURRENT_CLONE=""
+  Z_CURRENT_SETUP=""
+  Z_CURRENT_RUN=""
+  Z_CURRENT_RUN_STAGE=""
+  Z_CURRENT_RUN_PROD=""
+  Z_CURRENT_PRO=""
+  Z_CURRENT_TEST=""
+  Z_CURRENT_COV=""
+  Z_CURRENT_TEST_WATCH=""
+  Z_CURRENT_E2E=""
+  Z_CURRENT_E2EUI=""
+  Z_CURRENT_PR_TEMPLATE=""
+  Z_CURRENT_PR_REPLACE=""
+  Z_CURRENT_PR_APPEND=""
+  Z_CURRENT_PR_RUN_TEST=""
+  Z_CURRENT_GHA_INTERVAL=""
+  Z_CURRENT_COMMIT_ADD=""
+  Z_CURRENT_GHA_WORKFLOW=""
+  Z_CURRENT_PUSH_ON_REFIX=""
+  Z_CURRENT_DEFAULT_BRANCH=""
+  Z_CURRENT_PRINT_README=""
+}
+
+pro() {
+  if [[ -z "$1" || "$1" == "-h" ]]; then
+    echo "${yellow_cor} pro <pro>${clear_cor} : to set a project"
+    echo "${yellow_cor} pro add ${solid_yellow_cor}[<pro>]${clear_cor} : to create a new project"
+    echo "${yellow_cor} pro del <pro>${clear_cor} : to delete a project"
+    echo "${yellow_cor} pro <pro> <branch/folder>${clear_cor} : to set to a project and branch if in 'single mode' or folder if in 'multi mode'"
+    if [[ -n "${Z_PROJECT_SHORT_NAME[*]}" ]]; then
+      echo ""
+      echo -n " projects:"
+      for i in {1..10}; do echo -n " ${Z_PROJECT_SHORT_NAME[$i]}"; done
     fi
-    ERROR_PROJ_2=1
+    return 0;
   fi
 
-  return $ERROR_PROJ_2;
-}
-
-check_prj_3_() {
-  ERROR_PROJ_3=0
-
-  check_prj_folder_3_ "$1" "$2"
-  ERROR_PROJ_3=$?
-
-  if [[ -z "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    if [[ "$1" != "-q" ]]; then
-      echo "${red_cor} error: not found Z_PROJECT_SHORT_NAME_3= ${clear_cor}";
-    fi
-    ERROR_PROJ_3=1
-  fi
-
-  return $ERROR_PROJ_3;
-}
-
-# check what project is set
-which_pro() {
   if [[ "$1" == "-q" ]]; then
     return 0;
   fi
 
-  if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
-    echo " your project is set to:${solid_blue_cor} $Z_PROJECT_SHORT_NAME${clear_cor} with${solid_magenta_cor} $Z_PACKAGE_MANAGER ${clear_cor}"
-    echo ""
-  fi
-  echo " options:"
-
-  is_any=0
-
-  if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-    echo "${yellow_cor} pro $Z_PROJECT_SHORT_NAME_1 ${clear_cor}";
-    is_any=1
-  fi
-  if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-    echo "${yellow_cor} pro $Z_PROJECT_SHORT_NAME_2 ${clear_cor}";
-    is_any=1
-  fi
-  if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    echo "${yellow_cor} pro $Z_PROJECT_SHORT_NAME_3 ${clear_cor}";
-    is_any=1
-  fi
-
-  if [[ $is_any -eq 0 ]]; then
-    echo " type${yellow_cor} pro${clear_cor} to set project"
-  fi
-}
-
-which_pro_pwd() {
-  if [[ -n "$Z_PROJECT_SHORT_NAME_1" && -n "$Z_PROJECT_FOLDER_1" ]]; then
-    if [[ $(PWD) == $Z_PROJECT_FOLDER_1* ]]; then
-      echo $Z_PROJECT_SHORT_NAME_1
-      return 0;
+  # Handle 'pwd' as a special case
+  if [[ "$1" == "pwd" ]]; then
+    _pro=$(which_pro_pwd_)
+    if [[ -n "$_pro" ]]; then
+      pro "$_pro" "$2"
+      return $?
     fi
+    return 0
   fi
 
-  if [[ -n "$Z_PROJECT_SHORT_NAME_2" && -n "$Z_PROJECT_FOLDER_2" ]]; then
-    if [[ $(PWD) == $Z_PROJECT_FOLDER_2* ]]; then
-      echo $Z_PROJECT_SHORT_NAME_2
-      return 0;
-    fi
-  fi
-
-  if [[ -n "$Z_PROJECT_SHORT_NAME_3" && -n "$Z_PROJECT_FOLDER_3" ]]; then
-    if [[ $(PWD) == $Z_PROJECT_FOLDER_3* ]]; then
-      echo $Z_PROJECT_SHORT_NAME_3
-      return 0;
-    fi
-  fi
-
-  # cannot determine project based on pwd
-  return 1;
-}
-
-pro() {
-  if [[ -z "$1" ]]; then
-    if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
-      echo " your project is set to:${solid_blue_cor} $Z_PROJECT_SHORT_NAME${clear_cor} with${solid_magenta_cor} $Z_PACKAGE_MANAGER ${clear_cor}"
-      echo ""
+  action_arg=""
+  proj_arg=""
+  folder_arg=""
+  is_quiet=0
+  
+  if [[ -n "$3" ]]; then
+    if [[ "$1" =~ ^(Z_PROJECT_SHORT_NAME_[1-9]|Z_PROJECT_SHORT_NAME_10)$ ]]; then
+      proj_arg="$1"
+      folder_arg="$2"
     else
-      # user has no projects in config
-      if [[ "$2" != "-q" ]]; then
-        echo " no project set, type${yellow_cor} help${clear_cor} to set project"
+      action_arg="$1"
+      proj_arg="$2"
+    fi
+  elif [[ -n "$2" ]]; then
+    if [[ "$1" =~ ^(Z_PROJECT_SHORT_NAME_[1-9]|Z_PROJECT_SHORT_NAME_10)$ ]]; then
+      proj_arg="$1"
+      if [[ "$2" != "-q" ]]; then folder_arg="$2"; else is_quiet=1; fi
+    else
+      action_arg="$1"
+      if [[ "$2" != "-q" ]]; then proj_arg="$2"; else is_quiet=1; fi
+    fi
+  else
+    if [[ "$1" =~ ^(Z_PROJECT_SHORT_NAME_[1-9]|Z_PROJECT_SHORT_NAME_10)$ ]]; then
+      proj_arg="$1"
+    else
+      if [[ "$1" != "-q" ]]; then action_arg="$1"; else is_quiet=1; fi
+    fi
+  fi
+
+  if [[ "$action_arg" == "add" ]]; then
+    # Create a new project
+    for i in {1..10}; do
+      if [[ -z "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        save_project_ $i $proj_arg
+        return 0;
+      fi
+    done
+    if [[ $is_quiet -eq 0 ]]; then
+      echo " no more slots available, please delete one to add a new one"
+    fi
+    return 1;
+  elif [[ "$action_arg" == "del" ]]; then
+    if [[ -z "$proj_arg" ]]; then
+      if [[ $is_quiet -eq 0 ]]; then
+        echo " please provide a project name to delete"
       fi
       return 1;
     fi
 
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && -n "$Z_PROJECT_SHORT_NAME_2" && -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      pro_choices=("$Z_PROJECT_SHORT_NAME_1" "$Z_PROJECT_SHORT_NAME_2" "$Z_PROJECT_SHORT_NAME_3")
-      choice=$(choose_one_ "set project:" $pro_choices);
-
-      if [[ $? -eq 0 && -n "$choice" ]]; then
-        pro "$choice"
-        if [ $? -eq 0 ]; then return 0; else return 1; fi
-      fi
-
-    elif [[ "$2" != "-q" ]]; then
-      if confirm_from_ "Would you like to set a new project?"; then
-        if [[ -z "$Z_PROJECT_SHORT_NAME_1" ]]; then
-          save_project_1_
-        elif [[ -z "$Z_PROJECT_SHORT_NAME_2" ]]; then
-          save_project_2_
-        elif [[ -z "$Z_PROJECT_SHORT_NAME_3" ]]; then
-          save_project_3_
-        else
-          echo " no more projects available, please remove one to add a new one"
+    # Delete a project
+    for i in {1..10}; do
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        if [[ "$proj_arg" == "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+          clear_current_project_
         fi
+        clear_project_ $i
+
+        update_config_ "Z_PROJECT_SHORT_NAME_$i" ""
+        update_config_ "Z_PROJECT_FOLDER_$i" ""
+        update_config_ "Z_PROJECT_REPO_$i" ""
+        update_config_ "Z_PACKAGE_MANAGER_$i" ""
+        update_config_ "Z_CODE_EDITOR_$i" ""
+        update_config_ "Z_CLONE_$i" ""
+        update_config_ "Z_SETUP_$i" ""
+        update_config_ "Z_RUN_$i" ""
+        update_config_ "Z_RUN_STAGE_$i" ""
+        update_config_ "Z_RUN_PROD_$i" ""
+        update_config_ "Z_PRO_$i" ""
+        update_config_ "Z_TEST_$i" ""
+        update_config_ "Z_COV_$i" ""
+        update_config_ "Z_TEST_WATCH_$i" ""
+        update_config_ "Z_E2E_$i" ""
+        update_config_ "Z_E2EUI_$i" ""
+        update_config_ "Z_PR_TEMPLATE_$i" ""
+        update_config_ "Z_PR_REPLACE_$i" ""
+        update_config_ "Z_PR_APPEND_$i" ""
+        update_config_ "Z_PR_RUN_TEST_$i" ""
+        update_config_ "Z_GHA_INTERVAL_$i" ""
+        update_config_ "Z_COMMIT_ADD_$i" ""
+        update_config_ "Z_GHA_WORKFLOW_$i" ""
+        update_config_ "Z_CURRENT_PUSH_ON_REFIX_$i" ""
+        update_config_ "Z_DEFAULT_BRANCH_$i" ""
+        update_config_ "Z_PRINT_README_$i" ""
+
+        if [[ $? -eq 0 && $is_quiet -eq 0 ]]; then
+          echo " project deleted: $proj_arg"
+        fi
+        return 0;
+      fi
+    done
+    if [[ $is_quiet -eq 0 ]]; then
+      echo " project not found: $proj_arg"
+      if [[ -n "${Z_PROJECT_SHORT_NAME[*]}" ]]; then
+        echo -n " valid project names are:"
+        for i in {1..10}; do echo -n " ${Z_PROJECT_SHORT_NAME[$i]}"; done
       fi
     fi
-    return 0;
+    return 1;
   fi
 
-  # check if current folder is a project, then set project to that
-  if [[ "$1" == "pwd" ]]; then
-    _pwd=$(which_pro_pwd);
-    if [[ -n "$_pwd" ]]; then
-      pro "$_pwd" "$2"
-      if [ $? -eq 0 ]; then return 0; else return 1; fi
+  if [[ -z "$proj_arg" ]]; then
+    if [[ $is_quiet -eq 0 ]]; then
+      echo " please provide a project name to set"
+      if [[ -n "${Z_PROJECT_SHORT_NAME[*]}" ]]; then
+        echo -n " valid project names are:"
+        for i in {1..10}; do echo -n " ${Z_PROJECT_SHORT_NAME[$i]}"; done
+      fi
     fi
     return 1;
   fi
 
-  if [[ "$1" != "$Z_PROJECT_SHORT_NAME_1" && "$1" != "$Z_PROJECT_SHORT_NAME_2" && "$1" != "$Z_PROJECT_SHORT_NAME_3" ]]; then    
-    which_pro $2;
-    return 1;
-  fi
+  # Check if the project name matches one of the configured projects
+  for i in {1..10}; do
+    if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      # set the current project
+      Z_CURRENT_PROJECT_SHORT_NAME="${Z_PROJECT_SHORT_NAME[$i]}"
+      Z_CURRENT_PROJECT_FOLDER="${Z_PROJECT_FOLDER[$i]}"
+      Z_CURRENT_PROJECT_REPO="${Z_PROJECT_REPO[$i]}"
+      Z_CURRENT_PACKAGE_MANAGER="${Z_PACKAGE_MANAGER[$i]}"
+      Z_CURRENT_CODE_EDITOR="${Z_CODE_EDITOR[$i]}"
+      Z_CURRENT_CLONE="${Z_CLONE[$i]}"
+      Z_CURRENT_SETUP="${Z_SETUP[$i]}"
+      Z_CURRENT_RUN="${Z_RUN[$i]}"
+      Z_CURRENT_RUN_STAGE="${Z_RUN_STAGE[$i]}"
+      Z_CURRENT_RUN_PROD="${Z_RUN_PROD[$i]}"
+      Z_CURRENT_PRO="${Z_PRO[$i]}"
+      Z_CURRENT_TEST="${Z_TEST[$i]}"
+      Z_CURRENT_COV="${Z_COV[$i]}"
+      Z_CURRENT_TEST_WATCH="${Z_TEST_WATCH[$i]}"
+      Z_CURRENT_E2E="${Z_E2E[$i]}"
+      Z_CURRENT_E2EUI="${Z_E2EUI[$i]}"
+      Z_CURRENT_PR_TEMPLATE="${Z_PR_TEMPLATE[$i]}"
+      Z_CURRENT_PR_REPLACE="${Z_PR_REPLACE[$i]}"
+      Z_CURRENT_PR_APPEND="${Z_PR_APPEND[$i]}"
+      Z_CURRENT_PR_RUN_TEST="${Z_PR_RUN_TEST[$i]}"
+      Z_CURRENT_GHA_INTERVAL="${Z_GHA_INTERVAL[$i]}"
+      Z_CURRENT_COMMIT_ADD="${Z_COMMIT_ADD[$i]}"
+      Z_CURRENT_GHA_WORKFLOW="${Z_GHA_WORKFLOW[$i]}"
+      Z_CURRENT_PUSH_ON_REFIX="${Z_PUSH_ON_REFIX[$i]}"
+      Z_CURRENT_DEFAULT_BRANCH="${Z_DEFAULT_BRANCH[$i]}"
+      Z_CURRENT_PRINT_README="${Z_PRINT_README[$i]}"
 
-  if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-    check_prj_1_ $2;
-    if [ $? -ne 0 ]; then return 1; fi
-
-    Z_PROJECT_FOLDER="$Z_PROJECT_FOLDER_1"
-    Z_PROJECT_SHORT_NAME="$Z_PROJECT_SHORT_NAME_1"
-    Z_PROJECT_REPO="$Z_PROJECT_REPO_1"
-    Z_PACKAGE_MANAGER="$Z_PACKAGE_MANAGER_1"
-    Z_CODE_EDITOR="$Z_CODE_EDITOR_1"
-    Z_CLONE="$Z_CLONE_1"
-    Z_SETUP="$Z_SETUP_1"
-    Z_RUN="$Z_RUN_1"
-    Z_RUN_STAGE="$Z_RUN_STAGE_1"
-    Z_RUN_PROD="$Z_RUN_PROD_1"
-    Z_PRO="$Z_PRO_1"
-    Z_TEST="$Z_TEST_1"
-    Z_COV="$Z_COV_1"
-    Z_TEST_WATCH="$Z_TEST_WATCH_1"
-    Z_E2E="$Z_E2E_1"
-    Z_E2EUI="$Z_E2EUI_1"
-    Z_PR_TEMPLATE="$Z_PR_TEMPLATE_1"
-    Z_PR_REPLACE="$Z_PR_REPLACE_1"
-    Z_PR_APPEND="$Z_PR_APPEND_1"
-    Z_PR_RUN_TEST="$Z_PR_RUN_TEST_1"
-    Z_GHA_INTERVAL="$Z_GHA_INTERVAL_1"
-    Z_COMMIT_ADD="$Z_COMMIT_ADD_1"
-    Z_DEFAULT_BRANCH="$Z_DEFAULT_BRANCH_1"
-    Z_GHA_WORKFLOW="$Z_GHA_WORKFLOW_1"
-    Z_PUSH_ON_REFIX="$Z_PUSH_ON_REFIX_1"
-    Z_PRINT_README="$Z_PRINT_README_1"
-
-  elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-    check_prj_2_ $2;
-    if [ $? -ne 0 ]; then return 1; fi
-
-    Z_PROJECT_FOLDER="$Z_PROJECT_FOLDER_2"
-    Z_PROJECT_SHORT_NAME="$Z_PROJECT_SHORT_NAME_2"
-    Z_PROJECT_REPO="$Z_PROJECT_REPO_2"
-    Z_PACKAGE_MANAGER="$Z_PACKAGE_MANAGER_2"
-    Z_CODE_EDITOR="$Z_CODE_EDITOR_2"
-    Z_CLONE="$Z_CLONE_2"
-    Z_SETUP="$Z_SETUP_2"
-    Z_RUN="$Z_RUN_2"
-    Z_RUN_STAGE="$Z_RUN_STAGE_2"
-    Z_RUN_PROD="$Z_RUN_PROD_2"
-    Z_PRO="$Z_PRO_2"
-    Z_TEST="$Z_TEST_2"
-    Z_COV="$Z_COV_2"
-    Z_TEST_WATCH="$Z_TEST_WATCH_2"
-    Z_E2E="$Z_E2E_2"
-    Z_E2EUI="$Z_E2EUI_2"
-    Z_PR_TEMPLATE="$Z_PR_TEMPLATE_2"
-    Z_PR_REPLACE="$Z_PR_REPLACE_2"
-    Z_PR_APPEND="$Z_PR_APPEND_2"
-    Z_PR_RUN_TEST="$Z_PR_RUN_TEST_2"
-    Z_GHA_INTERVAL="$Z_GHA_INTERVAL_2"
-    Z_COMMIT_ADD="$Z_COMMIT_ADD_2"
-    Z_DEFAULT_BRANCH="$Z_DEFAULT_BRANCH_2"
-    Z_GHA_WORKFLOW="$Z_GHA_WORKFLOW_2"
-    Z_PUSH_ON_REFIX="$Z_PUSH_ON_REFIX_2"
-    Z_PRINT_README="$Z_PRINT_README_2"
-
-  elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    check_prj_3_ $2;
-    if [ $? -ne 0 ]; then return 1; fi
-
-    Z_PROJECT_FOLDER="$Z_PROJECT_FOLDER_3"
-    Z_PROJECT_SHORT_NAME="$Z_PROJECT_SHORT_NAME_3"
-    Z_PROJECT_REPO="$Z_PROJECT_REPO_3"
-    Z_PACKAGE_MANAGER="$Z_PACKAGE_MANAGER_3"
-    Z_CODE_EDITOR="$Z_CODE_EDITOR_3"
-    Z_CLONE="$Z_CLONE_3"
-    Z_SETUP="$Z_SETUP_3"
-    Z_RUN="$Z_RUN_3"
-    Z_RUN_STAGE="$Z_RUN_STAGE_3"
-    Z_RUN_PROD="$Z_RUN_PROD_3"
-    Z_PRO="$Z_PRO_3"
-    Z_TEST="$Z_TEST_3"
-    Z_COV="$Z_COV_3"
-    Z_TEST_WATCH="$Z_TEST_WATCH_3"
-    Z_E2E="$Z_E2E_3"
-    Z_E2EUI="$Z_E2EUI_3"
-    Z_PR_TEMPLATE="$Z_PR_TEMPLATE_3"
-    Z_PR_REPLACE="$Z_PR_REPLACE_3"
-    Z_PR_APPEND="$Z_PR_APPEND_3"
-    Z_PR_RUN_TEST="$Z_PR_RUN_TEST_3"
-    Z_GHA_INTERVAL="$Z_GHA_INTERVAL_3"
-    Z_COMMIT_ADD="$Z_COMMIT_ADD_3"
-    Z_DEFAULT_BRANCH="$Z_DEFAULT_BRANCH_3"
-    Z_GHA_WORKFLOW="$Z_GHA_WORKFLOW_3"
-    Z_PUSH_ON_REFIX="$Z_PUSH_ON_REFIX_3"
-    Z_PRINT_README="$Z_PRINT_README_3"
-
-  else
-    which_pro $2;
-    return 0;
-  fi
-
-  echo "$Z_PROJECT_SHORT_NAME" > "$PUMP_PRO_FILE"
-
-  # which_pro $2;
-
-  if [[ $(PWD) != $Z_PROJECT_FOLDER* ]]; then
-    if [[ "$2" != "-q" ]]; then
-      mkdir -p "$Z_PROJECT_FOLDER" &>/dev/null
-      cd "$Z_PROJECT_FOLDER"
+      check_prj_ $i
+      if [ $? -ne 0 ]; then
+        clear_current_project_
+        return 1;
+      fi
+      break
     fi
+  done
+
+  if [[ -z "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+    if [[ $is_quiet -eq 0 ]]; then
+      echo " project not found: $proj_arg"
+      if [[ -n "${Z_PROJECT_SHORT_NAME[*]}" ]]; then
+        echo -n " valid project names are:"
+        for i in {1..10}; do echo -n " ${Z_PROJECT_SHORT_NAME[$i]}"; done
+      fi
+    fi
+    return 1
   fi
 
-  # if [[ -n "$Z_PRO" && "$2" != "-q" ]]; then
-  #   eval "$Z_PRO"
-  # fi
-  
-  export Z_PROJECT_SHORT_NAME="$Z_PROJECT_SHORT_NAME"
+  if [[ $is_quiet -eq 0 ]]; then
+    echo " project set to: ${solid_blue_cor}$Z_CURRENT_PROJECT_SHORT_NAME${clear_cor} with ${solid_magenta_cor}$Z_CURRENT_PACKAGE_MANAGER${clear_cor}"
+  fi
 
-  if [[ "$2" != "-q" ]]; then
+  echo "$Z_CURRENT_PROJECT_SHORT_NAME" > "$PUMP_PRO_FILE"
+  export Z_CURRENT_PROJECT_SHORT_NAME="$Z_CURRENT_PROJECT_SHORT_NAME"
+
+  if [[ $is_quiet -eq 0 ]]; then
+  # If not in the correct directory, change to the project folder
+    if [[ $(PWD) != $Z_CURRENT_PROJECT_FOLDER* ]]; then
+      mkdir -p "$Z_CURRENT_PROJECT_FOLDER" &>/dev/null
+      cd "$Z_CURRENT_PROJECT_FOLDER"
+    fi
+
     refresh
   fi
 }
 
-if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
-  check_proj_name_valid_ "$Z_PROJECT_SHORT_NAME_1" -q
-  if [ $? -ne 0 ]; then
-    Z_PROJECT_SHORT_NAME_1=""
-  fi
-fi
-
-if [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
-  check_proj_name_valid_ "$Z_PROJECT_SHORT_NAME_2" -q
-  if [ $? -ne 0 ]; then
-    Z_PROJECT_SHORT_NAME_2=""
-  fi
-fi
-
-if [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
-  check_proj_name_valid_ "$Z_PROJECT_SHORT_NAME_3" -q
-  if [ $? -ne 0 ]; then
-    Z_PROJECT_SHORT_NAME_3=""
-  fi
-fi
-
-# auto pro ===============================================================
-pro pwd -q
-# get stored project and set project but do not change current directory
-if [ $? -ne 0 ]; then
-  # pump_pro_file_value="$(head -n 1 "$PUMP_PRO_FILE" &>/dev/null)";
-  [[ -f "$PUMP_PRO_FILE" ]] && pump_pro_file_value=$(<"$PUMP_PRO_FILE")
-
-  if [[ -n "$pump_pro_file_value" ]]; then
-    check_proj_name_valid_ "$pump_pro_file_value" -q
-    if [ $? -ne 0 ]; then
-      rm -f "$PUMP_PRO_FILE" &>/dev/null
-      pump_pro_file_value=""
-    fi
-  fi
-
-  project_names=("$pump_pro_file_value" "$Z_PROJECT_SHORT_NAME_1" "$Z_PROJECT_SHORT_NAME_2" "$Z_PROJECT_SHORT_NAME_3")
-  project_names=("${project_names[@]/#/}")
-
-  for project in "${project_names[@]}"; do
-    if [[ -n "$project" ]]; then
-      pro "$project" -q
-      if [[ $? -eq 0 ]]; then
-        break  # Exit loop once a valid project is found and executed successfully
+which_pro_pwd_() {
+  # Iterate over project indices (1 to 10)
+  for i in {1..10}; do
+    # Check if the project short name and folder are set in the associative arrays
+    if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" && -n "${Z_PROJECT_FOLDER[$i]}" ]]; then
+      # Check if the current working directory matches the project folder
+      if [[ $(PWD) == "${Z_PROJECT_FOLDER[$i]}"* ]]; then
+        echo "${Z_PROJECT_SHORT_NAME[$i]}"
+        return 0
       fi
     fi
   done
-fi
 
-if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
-  echo " your project is set to:${solid_blue_cor} $Z_PROJECT_SHORT_NAME${clear_cor} with${solid_magenta_cor} $Z_PACKAGE_MANAGER ${clear_cor}"
-  echo ""
-else
-  return 0;
-fi
-
-if [[ -n "$Z_PRO" ]]; then
-  eval "$Z_PRO"
-fi
-# ==========================================================================
+  # Cannot determine project based on pwd
+  return 1
+}
 
 check_any_pkg_() {
   check_any_pkg_silent_ "$1"
@@ -1773,9 +1290,9 @@ refix() {
   gum spin --title "refixing \"$last_commit_msg\"..." -- sh -c "read < $pipe_name" &
   spin_pid=$!
 
-  $Z_PACKAGE_MANAGER run format &>/dev/null
-  $Z_PACKAGE_MANAGER run lint &>/dev/null
-  $Z_PACKAGE_MANAGER run format &>/dev/null
+  $Z_CURRENT_PACKAGE_MANAGER run format &>/dev/null
+  $Z_CURRENT_PACKAGE_MANAGER run lint &>/dev/null
+  $Z_CURRENT_PACKAGE_MANAGER run format &>/dev/null
 
   echo "   refixing \"$last_commit_msg\"..."
 
@@ -1789,21 +1306,20 @@ refix() {
   git add .
   git commit -m "$last_commit_msg" "$@"
 
-  if [[ -n "$Z_PUSH_ON_REFIX" && $Z_PUSH_ON_REFIX -eq 0 ]]; then
+  if [[ -n "$Z_CURRENT_PUSH_ON_REFIX" && $Z_CURRENT_PUSH_ON_REFIX -eq 0 ]]; then
     return 0;
   fi
 
   if [[ "$1" != "-q" ]]; then
     if confirm_from_ "fix done, push now?"; then
       if confirm_from_ "save this preference and don't ask again?"; then
-        if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-          update_config_ "Z_PUSH_ON_REFIX_1" 1
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-          update_config_ "Z_PUSH_ON_REFIX_2" 1
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-          update_config_ "Z_PUSH_ON_REFIX_3" 1
-        fi
-        Z_PUSH_ON_REFIX=1
+        for i in {1..10}; do
+          if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+            update_config_ "Z_PUSH_ON_REFIX_${i}" 1
+            Z_CURRENT_PUSH_ON_REFIX=1
+            break
+          fi
+        done
       fi
     else
       return 0;
@@ -1812,60 +1328,6 @@ refix() {
 
   pushf "$@"
 }
-
-alias i="$Z_PACKAGE_MANAGER install"
-# Package manager aliases =========================================================
-alias build="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")build"
-alias deploy="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")deploy"
-alias fix="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format && $Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
-alias format="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format"
-alias ig="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")install --global"
-alias lint="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
-alias rdev="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")dev"
-alias tsc="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")tsc"
-alias sb="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook"
-alias sbb="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook:build"
-alias start="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")start"
-
-unalias ncov &>/dev/null
-unalias ntest &>/dev/null
-unalias ne2e &>/dev/null
-unalias ne2eui &>/dev/null
-unalias ntestw &>/dev/null
-
-unalias ycov &>/dev/null
-unalias ytest &>/dev/null
-unalias ye2e &>/dev/null
-unalias ye2eui &>/dev/null
-unalias ytestw &>/dev/null
-
-unalias pcov &>/dev/null
-unalias ptest &>/dev/null
-unalias pe2e &>/dev/null
-unalias pe2eui &>/dev/null
-unalias ptestw &>/dev/null
-
-unalias bcov &>/dev/null
-unalias btest &>/dev/null
-unalias be2e &>/dev/null
-unalias be2eui &>/dev/null
-unalias btestw &>/dev/null 
-
-if [[ "$Z_COV" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage" ]]; then
-  alias ${Z_PACKAGE_MANAGER:0:1}cov="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage"
-fi
-if [[ "$Z_TEST" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test" ]]; then
-  alias ${Z_PACKAGE_MANAGER:0:1}test="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test"
-fi
-if [[ "$Z_E2E" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e" ]]; then
-  alias ${Z_PACKAGE_MANAGER:0:1}e2e="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e"
-fi
-if [[ "$Z_E2EUI" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui" ]]; then
-  alias ${Z_PACKAGE_MANAGER:0:1}e2eui="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui"
-fi
-if [[ "$Z_TEST_WATCH" != "$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch" ]]; then
-  alias ${Z_PACKAGE_MANAGER:0:1}testw="$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch"
-fi
 
 get_default_branch_folder_() {
   proj_folder="${1:-$PWD}"
@@ -1888,306 +1350,16 @@ get_default_branch_folder_() {
   fi
 }
 
-# project functions =========================================================
-if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
-  $Z_PROJECT_SHORT_NAME_1() {
-    if [[ -z "$Z_PROJECT_FOLDER_1" ]]; then
-      save_project_1_
-      return 1;
-    fi
+is_project_single_mode_() {
+  proj="${1:-$Z_CURRENT_PROJECT_FOLDER}"
 
-    check_any_pkg_silent_ "$Z_PROJECT_FOLDER_1"
-    single_mode=$?;
-
-    if [[ "$1" == "-h" ]]; then
-      echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_1${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_1"
-      if [ $single_mode -eq 0 ]; then
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<branch>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_1 and switch to branch"
-      else
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_1 -l${clear_cor} : to list all $Z_PROJECT_SHORT_NAME_1's working folders"
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<folder>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_1 into a folder"
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<folder>] [<branch>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_1 into a folder and switch to branch"
-      fi
-      return 0;
-    fi
-
-    if [[ "$1" == "-l" ]]; then
-      if [[ $single_mode -eq 0 ]]; then
-        echo " project is in 'single mode'"
-        echo " ${yellow_cor} $Z_PROJECT_SHORT_NAME_1 -h${clear_cor} to see usage"
-        return 0;
-      fi
-
-      if [[ -n ${(f)"$(get_folders_ "$Z_PROJECT_FOLDER_1")"} ]]; then
-        folders=($(get_folders_ "$Z_PROJECT_FOLDER_1"))
-
-        for folder in "${folders[@]}"; do
-          echo "${pink_cor} $folder ${clear_cor}"
-        done
-      else
-        echo " no folders yet"
-      fi
-      return 0;
-    fi
-
-    if [[ -z "$1" && $single_mode -eq 1 ]]; then
-      if [[ -n ${(f)"$(get_folders_ "$Z_PROJECT_FOLDER_1")"} ]]; then
-        folders=($(get_folders_ "$Z_PROJECT_FOLDER_1"))
-        selected_folder=($(choose_auto_one_ "choose work folder:" "${folders[@]}"))
-        if [[ -z "$selected_folder" ]]; then
-          return 1;
-        fi
-
-        eval "$Z_PROJECT_SHORT_NAME_1" "$selected_folder"
-        return 0;
-      fi
-    fi
-
-    arg2=""
-    if [[ "$Z_PROJECT_SHORT_NAME_1" == "$Z_PROJECT_SHORT_NAME" ]]; then
-      arg2="-q"
-    fi
-
-    pro "$Z_PROJECT_SHORT_NAME_1" $arg2
-    cd "$Z_PROJECT_FOLDER_1"
-
-    folder=""
-    branch=""
-    is_working_branch=0
-
-    if [ $single_mode -eq 0 ]; then # true, is single mode
-      branch="$1"
-      if [[ -z "$branch" ]]; then
-        is_working_branch=1
-        branch=$(git branch | grep -w "$PUMP_WORKING_BRANCH_1" | cut -c 3- | head -n 1)
-      fi
-    else
-      if [[ -z "$1" ]]; then
-        is_working_branch=1
-        folder="$PUMP_WORKING_BRANCH_1"
-        if [[ -z "$folder" || ! -d "$folder" ]]; then
-          folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_1")
-        fi
-      else
-        folder="$1"
-      fi
-      branch="$2"
-    fi
-
-    if [[ -n "$folder" ]]; then
-      if [[ $is_working_branch -eq 1 ]]; then check_any_pkg_silent_ "$folder"; else check_any_pkg_ "$folder"; fi
-      if [ $? -eq 0 ]; then
-        cd "$folder"
-      fi
-    fi
-    
-    if [[ -n "$branch" ]]; then
-      co -e $branch $is_working_branch
-      st
-    fi
-  }
-fi
-
-if [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
-  $Z_PROJECT_SHORT_NAME_2() {
-    if [[ -z "$Z_PROJECT_FOLDER_2" ]]; then
-      save_project_2_
-      return 1;
-    fi
-
-    check_any_pkg_silent_ "$Z_PROJECT_FOLDER_2"
-    single_mode=$?;
-
-    if [[ "$1" == "-h" ]]; then
-      echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_2${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_2"
-      if [ $single_mode -eq 0 ]; then
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<branch>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_2 and switch to branch"
-      else
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_2 -l${clear_cor} : to list all $Z_PROJECT_SHORT_NAME_2's working folders"
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<folder>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_2 into a folder"
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<folder> <branch>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_2 into a folder and switch to branch"
-      fi
-      return 0;
-    fi
-
-    if [[ "$1" == "-l" ]]; then
-      if [[ $single_mode -eq 0 ]]; then
-        echo " project is in 'single mode'"
-        echo " ${yellow_cor} $Z_PROJECT_SHORT_NAME_2 -h${clear_cor} to see usage"
-        return 0;
-      fi
-      if [[ -n ${(f)"$(get_folders_ "$Z_PROJECT_FOLDER_2")"} ]]; then
-        folders=($(get_folders_ "$Z_PROJECT_FOLDER_2"))
-
-        for folder in "${folders[@]}"; do
-          echo "${pink_cor} $folder ${clear_cor}"
-        done
-      else
-        echo " no folders yet"
-      fi
-      return 0;
-    fi
-
-    if [[ -z "$1" && $single_mode -eq 1 ]]; then
-      if [[ -n ${(f)"$(get_folders_ "$Z_PROJECT_FOLDER_2")"} ]]; then
-        folders=($(get_folders_ "$Z_PROJECT_FOLDER_2"))
-        selected_folder=($(choose_auto_one_ "choose work folder:" "${folders[@]}"))
-        if [[ -z "$selected_folder" ]]; then
-          return 1;
-        fi
-
-        eval "$Z_PROJECT_SHORT_NAME_2" "$selected_folder"
-        return 0;
-      fi
-    fi
-
-    arg2=""
-    if [[ "$Z_PROJECT_SHORT_NAME_2" == "$Z_PROJECT_SHORT_NAME" ]]; then
-      arg2="-q"
-    fi
-
-    pro "$Z_PROJECT_SHORT_NAME_2" $arg2
-    cd "$Z_PROJECT_FOLDER_2"
-
-    folder=""
-    branch=""
-    is_working_branch=0
-
-    if [ $single_mode -eq 0 ]; then # true, is single mode
-      branch="$1"
-      if [[ -z "$branch" ]]; then
-        is_working_branch=1
-        branch=$(git branch | grep -w "$PUMP_WORKING_BRANCH_2" | cut -c 3- | head -n 1)
-      fi
-    else
-      if [[ -z "$1" ]]; then
-        is_working_branch=1
-        folder="$PUMP_WORKING_BRANCH_2"
-        if [[ -z "$folder" || ! -d "$folder" ]]; then
-          folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_2")
-        fi
-      else
-        folder="$1"
-      fi
-      branch="$2"
-    fi
-
-    if [[ -n "$folder" ]]; then
-      if [[ $is_working_branch -eq 1 ]]; then check_any_pkg_silent_ "$folder"; else check_any_pkg_ "$folder"; fi
-      if [ $? -eq 0 ]; then
-        cd "$folder"
-      fi
-    fi
-    
-    if [[ -n "$branch" ]]; then
-      co -e $branch $is_working_branch
-      st
-    fi
-  }
-fi
-
-if [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
-  $Z_PROJECT_SHORT_NAME_3() {
-    if [[ -z "$Z_PROJECT_FOLDER_3" ]]; then
-      save_project_3_
-      return 1;
-    fi
-
-    check_any_pkg_silent_ "$Z_PROJECT_FOLDER_3"
-    single_mode=$?;
-
-    if [[ "$1" == "-h" ]]; then
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_3${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_3"
-      if [ $single_mode -eq 0 ]; then
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<branch>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_3 and switch to branch"
-      else
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_3 -l${clear_cor} : to list all $Z_PROJECT_SHORT_NAME_3's working folders"
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<folder>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_3 into a folder"
-        echo "${yellow_cor} $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<folder> <branch>]${clear_cor} : to cd into $Z_PROJECT_SHORT_NAME_3 into a folder and switch to branch"
-      fi
-      return 0;
-    fi
-
-    if [[ "$1" == "-l" ]]; then
-      if [[ $single_mode -eq 0 ]]; then
-        echo " project is in 'single mode'"
-        echo " ${yellow_cor} $Z_PROJECT_SHORT_NAME_3 -h${clear_cor} to see usage"
-        return 0;
-      fi
-
-      if [[ -n ${(f)"$(get_folders_ "$Z_PROJECT_FOLDER_3")"} ]]; then
-        folders=($(get_folders_ "$Z_PROJECT_FOLDER_3"))
-
-        for folder in "${folders[@]}"; do
-          echo "${pink_cor} $folder ${clear_cor}"
-        done
-      else
-        echo " no folders yet"
-      fi
-      return 0;
-    fi
-
-    if [[ -z "$1" && $single_mode -eq 1 ]]; then
-      if [[ -n ${(f)"$(get_folders_ "$Z_PROJECT_FOLDER_3")"} ]]; then
-        folders=($(get_folders_ "$Z_PROJECT_FOLDER_3"))
-        selected_folder=($(choose_auto_one_ "choose work folder:" "${folders[@]}"))
-        if [[ -z "$selected_folder" ]]; then
-          return 1;
-        fi
-
-        eval "$Z_PROJECT_SHORT_NAME_3" "$selected_folder"
-        return 0;
-      fi
-    fi
-
-    arg2=""
-    if [[ "$Z_PROJECT_SHORT_NAME_3" == "$Z_PROJECT_SHORT_NAME" ]]; then
-      arg2="-q"
-    fi
-
-    pro "$Z_PROJECT_SHORT_NAME_3" $arg2
-    cd "$Z_PROJECT_FOLDER_3"
-
-    folder=""
-    branch=""
-    is_working_branch=0
-
-    if [ $single_mode -eq 0 ]; then # true, is single mode
-      branch="$1"
-      if [[ -z "$branch" ]]; then
-        is_working_branch=1
-        branch=$(git branch | grep -w "$PUMP_WORKING_BRANCH_3" | cut -c 3- | head -n 1)
-      fi
-    else
-      if [[ -z "$1" ]]; then
-        is_working_branch=1
-        folder="$PUMP_WORKING_BRANCH_3"
-        if [[ -z "$folder" || ! -d "$folder" ]]; then
-          folder=$(get_default_branch_folder_ "$Z_PROJECT_FOLDER_3")
-        fi
-      else
-        folder="$1"
-      fi
-      branch="$2"
-    fi
-
-    if [[ -n "$folder" ]]; then
-      if [[ $is_working_branch -eq 1 ]]; then check_any_pkg_silent_ "$folder"; else check_any_pkg_ "$folder"; fi
-      if [ $? -eq 0 ]; then
-        cd "$folder"
-      fi
-    fi
-    
-    if [[ -n "$branch" ]]; then
-      co -e $branch $is_working_branch
-      st
-    fi
-  }
-fi
+  check_any_pkg_silent_ "$proj"
+  echo "$?"
+}
 
 covc() {
   if [[ -z "$1" || "$1" == "-h" ]]; then
-    echo "${yellow_cor} covc <branch>${clear_cor} : to compare test coverage with another branch"
+    echo "${yellow_cor} covc <branch>${clear_cor} : to compare test coverage with another branch of the same project"
     return 0;
   fi
 
@@ -2197,18 +1369,18 @@ covc() {
     return 1;
   fi
 
-  if [[ -z "$Z_COV" && -z "$Z_SETUP" ]]; then
-    echo " fatal: Z_COV and Z_SETUP are not set for${blue_cor} $Z_PROJECT_SHORT_NAME${clear_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${clear_cor}"
+  if [[ -z "$Z_CURRENT_COV" && -z "$Z_CURRENT_SETUP" ]]; then
+    echo " fatal: Z_COV and Z_SETUP are not set for${blue_cor} $Z_CURRENT_PROJECT_SHORT_NAME${clear_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${clear_cor}"
     return 1;
   fi
 
-  if [[ -z "$Z_COV" ]]; then
-    echo " fatal: Z_COV is not set for${blue_cor} $Z_PROJECT_SHORT_NAME${clear_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${clear_cor}"
+  if [[ -z "$Z_CURRENT_COV" ]]; then
+    echo " fatal: Z_COV is not set for${blue_cor} $Z_CURRENT_PROJECT_SHORT_NAME${clear_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${clear_cor}"
     return 1;
   fi
 
-  if [[ -z "$Z_SETUP" ]]; then
-    echo " fatal: Z_SETUP is not set for${blue_cor} $Z_PROJECT_SHORT_NAME${clear_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${clear_cor}"
+  if [[ -z "$Z_CURRENT_SETUP" ]]; then
+    echo " fatal: Z_SETUP is not set for${blue_cor} $Z_CURRENT_PROJECT_SHORT_NAME${clear_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${clear_cor}"
     return 1;
   fi
 
@@ -2246,29 +1418,54 @@ covc() {
   gum spin --title "running test coverage on $1..." -- sh -c "read < $pipe_name" &
   spin_pid=$!
 
-  cov_folder="$Z_PROJECT_FOLDER/.coverage"
+  is_single_mode=$(is_project_single_mode_)
+  if [[ $is_single_mode -eq 0 ]]; then
+    cov_folder=".$Z_CURRENT_PROJECT_FOLDER-coverage"
+  else
+    cov_folder="$Z_CURRENT_PROJECT_FOLDER/.coverage"
+  fi
+
+  _exit_code=1
 
   check_git_silent_ $cov_folder;
   if [[ $? -eq 0 ]]; then
     pushd "$cov_folder" &>/dev/null
 
     git reset --hard --quiet origin
-    git switch "$1" --quiet
-    git pull origin --quiet
+    git fetch origin --quiet
+    git switch "$1" --quiet &>/dev/null
+    _exit_code=$?
   else
     rm -rf "$cov_folder" &>/dev/null
-    git clone $Z_PROJECT_REPO "$cov_folder" --quiet
+    git clone $Z_CURRENT_PROJECT_REPO "$cov_folder" --quiet
     if [ $? -ne 0 ]; then
       return 1;
     fi
     pushd "$cov_folder" &>/dev/null
-    if [[ -n "$Z_CLONE" ]]; then
-      eval "$Z_CLONE" &>/dev/null
+    if [[ -n "$Z_CURRENT_CLONE" ]]; then
+      eval "$Z_CURRENT_CLONE" &>/dev/null
     fi
-    git switch "$1" --quiet
+    git switch "$1" --quiet &>/dev/null
+    _exit_code=$?
   fi
 
-  eval "$Z_SETUP" &>/dev/null
+  if [[ $_exit_code -eq 0 ]]; then
+    git pull origin --quiet
+    _exit_code=$?
+  fi
+
+  if [[ $_exit_code -ne 0 ]]; then
+    echo "done" > "$pipe_name" &>/dev/null
+    # kill $spin_pid &>/dev/null
+    rm "$pipe_name"
+    wait $spin_pid &>/dev/null
+    setopt monitor
+    setopt notify
+    echo " fatal: did not match any branch known to git: $1"
+    return 1;
+  fi
+
+  eval "$Z_CURRENT_SETUP" &>/dev/null
 
   is_delete_cov_folder=0;
 
@@ -2277,9 +1474,9 @@ covc() {
     mkdir -p coverage &>/dev/null
   fi
 
-  eval "$Z_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$1.txt" 2>&1
-  if [ $? -ne 0 ]; then
-    eval "$Z_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$1.txt" 2>&1
+  eval "$Z_CURRENT_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$1.txt" 2>&1
+  if [[ $? -ne 0 ]]; then
+    eval "$Z_CURRENT_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$1.txt" 2>&1
   fi
 
   echo "   running test coverage on $1..."
@@ -2321,9 +1518,9 @@ covc() {
 
   git switch "$my_branch" --quiet
 
-  eval "$Z_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$my_branch.txt" 2>&1
-  if [ $? -ne 0 ]; then
-    eval "$Z_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$my_branch.txt" 2>&1
+  eval "$Z_CURRENT_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$my_branch.txt" 2>&1
+  if [[ $? -ne 0 ]]; then
+    eval "$Z_CURRENT_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$my_branch.txt" 2>&1
   fi
 
   echo "   running test coverage on $my_branch..."
@@ -2352,17 +1549,17 @@ covc() {
   help_line_ "${1:0:22}" "${gray_cor}" 32 "${my_branch:0:22}" 32
   echo ""
 
-  color=$(if [[ $statements1 -gt $statements2 ]]; then echo "${red_cor}"; elif [[ $statements1 -lt $statements2 ]]; then echo "${green_cor}"; else echo " "; fi)
-  echo "$color Statements\t\t: $(printf "%.2f" $statements1)%  |$color Statements\t\t: $(printf "%.2f" $statements2)% ${clear_cor}"
+  color=$(if [[ $statements1 -gt $statements2 ]]; then echo "${red_cor}"; elif [[ $statements1 -lt $statements2 ]]; then echo "${green_cor}"; else echo ""; fi)
+  echo " Statements\t\t: $(printf "%.2f" $statements1)%  |${color} Statements\t\t: $(printf "%.2f" $statements2)% ${clear_cor}"
   
-  color=$(if [[ $branches1 -gt $branches2 ]]; then echo "${red_cor}"; elif [[ $branches1 -lt $branches2 ]]; then echo "${green_cor}"; else echo " "; fi)
-  echo "$color Branches\t\t: $(printf "%.2f" $branches1)%  |$color Branches\t\t: $(printf "%.2f" $branches2)% ${clear_cor}"
+  color=$(if [[ $branches1 -gt $branches2 ]]; then echo "${red_cor}"; elif [[ $branches1 -lt $branches2 ]]; then echo "${green_cor}"; else echo ""; fi)
+  echo " Branches\t\t: $(printf "%.2f" $branches1)%  |${color} Branches\t\t: $(printf "%.2f" $branches2)% ${clear_cor}"
   
-  color=$(if [[ $funcs1 -gt $funcs2 ]]; then echo "${red_cor}"; elif [[ $funcs1 -lt $funcs2 ]]; then echo "${green_cor}"; else echo " "; fi)
-  echo "$color Functions\t\t: $(printf "%.2f" $funcs1)%  |$color Functions\t\t: $(printf "%.2f" $funcs2)% ${clear_cor}"
+  color=$(if [[ $funcs1 -gt $funcs2 ]]; then echo "${red_cor}"; elif [[ $funcs1 -lt $funcs2 ]]; then echo "${green_cor}"; else echo ""; fi)
+  echo " Functions\t\t: $(printf "%.2f" $funcs1)%  |${color} Functions\t\t: $(printf "%.2f" $funcs2)% ${clear_cor}"
   
-  color=$(if [[ $lines1 -gt $lines2 ]]; then echo "${red_cor}"; elif [[ $lines1 -lt $lines2 ]]; then echo "${green_cor}"; else echo " "; fi)
-  echo "$color Lines\t\t\t: $(printf "%.2f" $lines1)%  |$color Lines\t\t: $(printf "%.2f" $lines2)% ${clear_cor}"
+  color=$(if [[ $lines1 -gt $lines2 ]]; then echo "${red_cor}"; elif [[ $lines1 -lt $lines2 ]]; then echo "${green_cor}"; else echo ""; fi)
+  echo " Lines\t\t\t: $(printf "%.2f" $lines1)%  |${color} Lines\t\t: $(printf "%.2f" $lines2)% ${clear_cor}"
   echo ""
 
   if [[ $is_delete_cov_folder -eq 1 ]]; then
@@ -2374,7 +1571,6 @@ covc() {
 
   setopt monitor
   setopt notify
-
 }
 
 test() {
@@ -2385,9 +1581,9 @@ test() {
 
   check_pkg_; if [ $? -ne 0 ]; then return 1; fi
 
-  eval "$Z_TEST" "$@"
+  eval "$Z_CURRENT_TEST" "$@"
   if [ $? -ne 0 ]; then
-    eval "$Z_TEST" "$@"
+    eval "$Z_CURRENT_TEST" "$@"
     if [ $? -ne 0 ]; then
       echo "\033[31m ❌ test failed\033[0m"
     else
@@ -2406,14 +1602,21 @@ cov() {
 
   check_pkg_; if [ $? -ne 0 ]; then return 1; fi
 
-  if [[ -z "$Z_COV" ]]; then
-    echo " fatal: Z_COV is not set for${blue_cor} $Z_PROJECT_SHORT_NAME${clear_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${clear_cor}"
+  if [[ $1 != -* ]]; then
+    covc "$@"
+    return $?;
+  fi
+
+  # check if folder is within project folder 
+
+  if [[ -z "$Z_CURRENT_COV" ]]; then
+    echo " fatal: Z_COV is not set for${blue_cor} $Z_CURRENT_PROJECT_SHORT_NAME${clear_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${clear_cor}"
     return 1;
   fi
   
-  eval "$Z_COV" "$@"
+  eval "$Z_CURRENT_COV" "$@"
   if [ $? -ne 0 ]; then
-    eval "$Z_COV" "$@"
+    eval "$Z_CURRENT_COV" "$@"
     if [ $? -ne 0 ]; then
       echo "\033[31m ❌ test coverage failed\033[0m"
     else
@@ -2432,22 +1635,22 @@ testw() {
 
   check_pkg_; if [ $? -ne 0 ]; then return 1; fi
 
-  eval "$Z_TEST_WATCH" "$@"
+  eval "$Z_CURRENT_TEST_WATCH" "$@"
 }
 
 e2e() {
   if [[ "$1" == "-h" ]]; then
     echo "${yellow_cor} e2e${clear_cor} : to run Z_E2E"
-    echo "${yellow_cor} e2e <project>${clear_cor} : to run Z_E2E --project <project>"
+    echo "${yellow_cor} e2e <e2e_project>${clear_cor} : to run Z_E2E --project <e2e_project>"
     return 0;
   fi
 
   check_pkg_; if [ $? -ne 0 ]; then return 1; fi
 
   if [[ -z "$1" ]]; then
-    eval "$Z_E2E"
+    eval "$Z_CURRENT_E2E"
   else
-    eval "$Z_E2E" --project="$1" "${@:2}"
+    eval "$Z_CURRENT_E2E" --project="$1" "${@:2}"
   fi
 }
 
@@ -2461,9 +1664,9 @@ e2eui() {
   check_pkg_; if [ $? -ne 0 ]; then return 1; fi
 
   if [[ -z "$1" ]]; then
-    eval "$Z_E2EUI"
+    eval "$Z_CURRENT_E2EUI"
   else
-    eval "$Z_E2EUI" --project="$1" "${@:2}"
+    eval "$Z_CURRENT_E2EUI" --project="$1" "${@:2}"
   fi
 }
 
@@ -2562,46 +1765,38 @@ pr() {
 
   pr_body="$commit_msgs"
 
-  if [[ -f "$Z_PR_TEMPLATE" && -n "$Z_PR_REPLACE" ]]; then
-    PR_TEMPLATE=$(cat $Z_PR_TEMPLATE)
+  if [[ -f "$Z_CURRENT_PR_TEMPLATE" && -n "$Z_CURRENT_PR_REPLACE" ]]; then
+    PR_TEMPLATE=$(cat $Z_CURRENT_PR_TEMPLATE)
 
-    if [[ $Z_PR_APPEND -eq 1 ]]; then
-      # Append commit msgs right after Z_PR_REPLACE in pr template
-      pr_body=$(echo "$PR_TEMPLATE" | perl -pe "s/(\Q$Z_PR_REPLACE\E)/\1\n\n$commit_msgs\n/")
+    if [[ $Z_CURRENT_PR_APPEND -eq 1 ]]; then
+      # Append commit msgs right after Z_CURRENT_PR_REPLACE in pr template
+      pr_body=$(echo "$PR_TEMPLATE" | perl -pe "s/(\Q$Z_CURRENT_PR_REPLACE\E)/\1\n\n$commit_msgs\n/")
     else
-      # Replace Z_PR_REPLACE with commit msgs in pr template
-      pr_body=$(echo "$PR_TEMPLATE" | perl -pe "s/\Q$Z_PR_REPLACE\E/$commit_msgs/g")
+      # Replace Z_CURRENT_PR_REPLACE with commit msgs in pr template
+      pr_body=$(echo "$PR_TEMPLATE" | perl -pe "s/\Q$Z_CURRENT_PR_REPLACE\E/$commit_msgs/g")
     fi
   fi
 
-  if [[ -z "$Z_PR_RUN_TEST" ]]; then
+  if [[ -z "$Z_CURRENT_PR_RUN_TEST" ]]; then
     if confirm_from_ "run tests before a pull request?"; then
       test
       if [ $? -ne 0 ]; then
         echo "${solid_red_cor} fatal: tests are not passing,${clear_cor} did not push";
         return 1;
       fi
-      if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-        update_config_ "Z_PR_RUN_TEST_1" 1
-      elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-        update_config_ "Z_PR_RUN_TEST_2" 1
-      elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        update_config_ "Z_PR_RUN_TEST_3" 1
-      fi
-      echo ""
-    else
-      if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-        update_config_ "Z_PR_RUN_TEST_1" 0
-      elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-        update_config_ "Z_PR_RUN_TEST_2" 0
-      elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        update_config_ "Z_PR_RUN_TEST_3" 0
-      fi
-      echo ""
-    fi
-  fi
 
-  if [[ $Z_PR_RUN_TEST -eq 1 && "$1" != "-s" ]]; then
+      if confirm_from_ "save this preference and don't ask again?"; then
+        for i in {1..10}; do
+          if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+            update_config_ "Z_PR_RUN_TEST_${i}" 1
+            Z_CURRENT_PR_RUN_TEST=1
+            break
+          fi
+        done
+        echo ""
+      fi
+    fi
+  elif [[ $Z_CURRENT_PR_RUN_TEST -eq 1 && "$1" != "-s" ]]; then
     git_status=$(git status --porcelain)
     if [[ -n "$git_status" ]]; then
       if ! confirm_from_ "skip test?"; then
@@ -2636,25 +1831,17 @@ pr() {
 run() {
   if [[ "$1" == "-h" ]]; then
     echo "${yellow_cor} run${clear_cor} : to run dev in current folder"
-    echo "${yellow_cor} run <folder>${clear_cor} : to run $Z_PROJECT_SHORT_NAME's folder on dev environment"
     echo " --"
     echo "${yellow_cor} run dev${clear_cor} : to run dev in current folder"
     echo "${yellow_cor} run stage${clear_cor} : to run stage in current folder"
     echo "${yellow_cor} run prod${clear_cor} : to run prod in current folder"
     echo " --"
-    if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
-      echo "${yellow_cor} run${solid_yellow_cor} [<folder>] [<env>]${clear_cor} : to run $Z_PROJECT_SHORT_NAME's folder on environment"
+    if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+      echo "${yellow_cor} run <folder>${clear_cor} : to run a folder on dev environment for $Z_CURRENT_PROJECT_SHORT_NAME"
+      echo "${yellow_cor} run${solid_yellow_cor} [<folder>] [<env>]${clear_cor} : to run a folder on environment for $Z_CURRENT_PROJECT_SHORT_NAME"
       echo " --"
     fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} run $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<folder>] [<env>]${clear_cor} : to run $Z_PROJECT_SHORT_NAME_1's folder on environment"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} run $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<folder>] [<env>]${clear_cor} : to run $Z_PROJECT_SHORT_NAME_2's folder on environment"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} run $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<folder>] [<env>]${clear_cor} : to run $Z_PROJECT_SHORT_NAME_3's folder on environment"
-    fi
+    echo "${yellow_cor} run <pro>${solid_yellow_cor} [<folder>] [<env>]${clear_cor} : to run a folder on environment for a project"
     return 0;
   fi
 
@@ -2672,21 +1859,20 @@ run() {
     _env="$3"
     folder_arg="$2"
   elif [[ -n "$2" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      proj_arg="${1:-$Z_PROJECT_SHORT_NAME}"
+    if [[ "$1" =~ ^(Z_PROJECT_SHORT_NAME_[1-9]|Z_PROJECT_SHORT_NAME_10)$ ]]; then
+      proj_arg="${1:-$Z_CURRENT_PROJECT_SHORT_NAME}"
       if [[ "$2" == "dev" || "$2" == "stage" || "$2" == "prod" ]]; then
-        if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-          check_any_pkg_silent_ "$Z_PROJECT_FOLDER_1";
-        elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-          check_any_pkg_silent_ "$Z_PROJECT_FOLDER_2";
-        elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-          check_any_pkg_silent_ "$Z_PROJECT_FOLDER_3";
-        fi
-        if [[ $? -eq 0 ]]; then
-          _env="$2"
-        else
-          folder_arg="$2"
-        fi
+        for i in {1..10}; do
+          if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+            check_any_pkg_silent_ "${Z_PROJECT_FOLDER[$i]}"
+            if [[ $? -eq 0 ]]; then
+              _env="$2"
+            else
+              folder_arg="$2"
+            fi
+            break
+          fi
+        done
       else
         folder_arg="$2"
       fi
@@ -2695,7 +1881,7 @@ run() {
       _env="$2"
     fi
   elif [[ -n "$1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+    if [[ "$1" =~ ^(Z_PROJECT_SHORT_NAME_[1-9]|Z_PROJECT_SHORT_NAME_10)$ ]]; then
       proj_arg="$1"
     elif [[ "$1" == "dev" || "$1" == "stage" || "$1" == "prod" ]]; then
       _env="$1"
@@ -2704,59 +1890,41 @@ run() {
     fi
   fi
 
-  # it's possible to run a project without proj_arg
-
+  # Validate environment
   if [[ "$_env" != "dev" && "$_env" != "stage" && "$_env" != "prod" ]]; then
     echo " fatal: env is incorrect, valid options: dev, stage or prod"
     echo " ${yellow_cor} run -h${clear_cor} to see usage"
     return 1;
   fi
 
-  proj_folder="";
-  _run="$Z_RUN";
+  proj_folder=""
+  _run="$Z_CURRENT_RUN"
 
   if [[ "$_env" == "stage" ]]; then
-    _run="$Z_RUN_STAGE"
+    _run="$Z_CURRENT_RUN_STAGE"
   elif [[ "$_env" == "prod" ]]; then
-    _run="$Z_RUN_PROD"
+    _run="$Z_CURRENT_RUN_PROD"
   fi
 
   if [[ -n "$proj_arg" ]]; then
-    if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_1"
-      _run="$Z_RUN_1"
+    for i in {1..10}; do
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        check_prj_ $i
+        if [ $? -ne 0 ]; then return 1; fi
 
-      if [[ "$_env" == "stage" ]]; then
-        _run="$Z_RUN_STAGE_1"
-      elif [[ "$_env" == "prod" ]]; then
-        _run="$Z_RUN_PROD_1"
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        _run="${Z_RUN[$i]}"
+
+        if [[ "$_env" == "stage" ]]; then
+          _run="${Z_RUN_STAGE[$i]}"
+        elif [[ "$_env" == "prod" ]]; then
+          _run="${Z_RUN_PROD[$i]}"
+        fi
+        break
       fi
-
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_2"
-      _run="$Z_RUN_2"
-
-      if [[ "$_env" == "stage" ]]; then
-        _run="$Z_RUN_STAGE_2"
-      elif [[ "$_env" == "prod" ]]; then
-        _run="$Z_RUN_PROD_2"
-      fi
-
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_3"
-      _run="$Z_RUN_3"
-
-      if [[ "$_env" == "stage" ]]; then
-        _run="$Z_RUN_STAGE_3"
-      elif [[ "$_env" == "prod" ]]; then
-        _run="$Z_RUN_PROD_3"
-      fi
-    fi
+    done
   else
-    proj_arg="$Z_PROJECT_SHORT_NAME"
+    proj_arg="$Z_CURRENT_PROJECT_SHORT_NAME"
   fi
 
   if [[ -z "$_run" ]]; then
@@ -2811,19 +1979,11 @@ run() {
 setup() {
   if [[ "$1" == "-h" ]]; then
       echo "${yellow_cor} setup${clear_cor} : to setup current folder"
-      if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
-        echo "${yellow_cor} setup <folder>${clear_cor} : to setup $Z_PROJECT_SHORT_NAME's folder"
+      if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+        echo "${yellow_cor} setup <folder>${clear_cor} : to setup a folder for $Z_CURRENT_PROJECT_SHORT_NAME"
       fi
       echo " --"
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} setup $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<folder>]${clear_cor} : to setup $Z_PROJECT_SHORT_NAME_1's folder"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} setup $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<folder>]${clear_cor} : to setup $Z_PROJECT_SHORT_NAME_2's folder"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} setup $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<folder>]${clear_cor} : to setup $Z_PROJECT_SHORT_NAME_3's folder"
-    fi
+    echo "${yellow_cor} setup <pro>${solid_yellow_cor} [<folder>]${clear_cor} : to setup a folder for a project"
     return 0;
   fi
 
@@ -2839,7 +1999,7 @@ setup() {
     proj_arg="$1"
     folder_arg="$2"
   elif [[ -n "$1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+    if [[ "$1" =~ ^(Z_PROJECT_SHORT_NAME_[1-9]|Z_PROJECT_SHORT_NAME_10)$ ]]; then
       proj_arg="$1"
     else
       folder_arg="$1"
@@ -2847,25 +2007,21 @@ setup() {
   fi
 
   proj_folder="";
-  _setup=${Z_SETUP:-$Z_PACKAGE_MANAGER $([[ $Z_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")setup}
+  _setup=${Z_CURRENT_SETUP:-$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")setup}
 
   if [[ -n "$proj_arg" ]]; then
-    if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_1"
-      _setup=${Z_SETUP_1:-$Z_PACKAGE_MANAGER_1 $([[ $Z_PACKAGE_MANAGER_1 == "yarn" ]] && echo "" || echo "run ")setup}
+    for i in {1..10}; do
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        check_prj_ $i
+        if [ $? -ne 0 ]; then return 1; fi
 
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_2"
-      _setup=${Z_SETUP_2:-$Z_PACKAGE_MANAGER_2 $([[ $Z_PACKAGE_MANAGER_2 == "yarn" ]] && echo "" || echo "run ")setup}
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        _setup="${Z_SETUP[$i]:-${Z_PACKAGE_MANAGER[$i]} $([[ ${Z_PACKAGE_MANAGER[$i]} == "yarn" ]] && echo "" || echo "run ")setup}"
+        break
+      fi
+    done
 
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_3"
-      _setup=${Z_SETUP_3:-$Z_PACKAGE_MANAGER_3 $([[ $Z_PACKAGE_MANAGER_3 == "yarn" ]] && echo "" || echo "run ")setup}
-
-    else
+    if [[ -z "$proj_folder" ]]; then
       echo " fatal: not a valid project: $proj_arg"
       echo " ${yellow_cor} setup -h${clear_cor} to see usage"
       return 1;
@@ -2920,12 +2076,13 @@ setup() {
   eval "$_setup"
 }
 
-
 # Clone =====================================================================
 # review branch
 revs() {
   if [[ "$1" == "-h" ]]; then
-    echo "${yellow_cor} revs${clear_cor} : to list reviews from $Z_PROJECT_SHORT_NAME"
+    if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+      echo "${yellow_cor} revs${clear_cor} : to list reviews from $Z_CURRENT_PROJECT_SHORT_NAME"
+    fi
     echo "${yellow_cor} revs <pro>${clear_cor} : to list reviews from project"
     return 0;
   fi
@@ -2936,65 +2093,66 @@ revs() {
     return 1;
   fi
   
-  proj_arg="$Z_PROJECT_SHORT_NAME"
+  proj_arg="$Z_CURRENT_PROJECT_SHORT_NAME"
 
   if [[ -n "$1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      proj_arg="${1:-$Z_PROJECT_SHORT_NAME}"
-    else
+    valid_project=0
+    for i in {1..10}; do
+      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        proj_arg="${1:-$Z_CURRENT_PROJECT_SHORT_NAME}"
+        valid_project=1
+        break
+      fi
+    done
+
+    if [[ $valid_project -eq 0 ]]; then
       echo " fatal: not a valid project: $1"
-      echo " ${yellow_cor} pro -h${clear_cor} to see usage"
-      return 1;
+      echo " ${yellow_cor} pro${clear_cor} to see options"
+      return 1
     fi
   fi
 
   proj_folder=""
 
-  if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-    check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-    proj_folder="$Z_PROJECT_FOLDER_1"
+  for i in {1..10}; do
+    if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      check_prj_ $i
+      if [ $? -ne 0 ]; then return 1; fi
 
-  elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-    check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-    proj_folder="$Z_PROJECT_FOLDER_2"
+      proj_folder="${Z_PROJECT_FOLDER[$i]}"
+      break
+    fi
+  done
 
-  elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-    proj_folder="$Z_PROJECT_FOLDER_3"
-
-  else
-      echo " fatal: not a valid project: $proj_arg"
-      echo " ${yellow_cor} revs -h${clear_cor} to see usage"
-    return 1;
+  if [[ -z $proj_folder ]]; then
+    echo " fatal: not a valid project: $proj_arg"
+    echo " ${yellow_cor} revs -h${clear_cor} to see usage"
+    return 1
   fi
 
-  if [[ -z "$proj_folder" ]]; then
-    echo " could not located project folder, please check your config"
-    echo "  run${yellow_cor} help${clear_cor} for more information"
-    return 1;
-  fi
+  _pwd="$(PWD)";
 
   revs_folder="$proj_folder/revs"
 
-  if [[ ! -d "$revs_folder" ]]; then
-    revs_folder="$proj_folder-revs"
+  if [[ -d "$revs_folder" ]]; then
+    cd "$revs_folder"
+  else
+    revs_folder=".$proj_folder-revs"
+    if [[ -d "$revs_folder" ]]; then
+      cd "$revs_folder"
+    else
+      echo " no revs for $proj_folder"
+      echo " ${yellow_cor} rev${clear_cor} to open a review"
+      return 1; 
+    fi
   fi
 
-  if [[ ! -d "$revs_folder" ]]; then
-    echo " fatal: no revs folder was found in $proj_folder"
-    echo " ${yellow_cor} rev -h${clear_cor} to see usage"
-    return 1;
-  fi
-
-  # REVS__pwd="$(PWD)";
-
-  cd "$revs_folder"
   rev_choices=$(ls -d rev* | xargs -0 | sort -fu)
 
   if [[ -z "$rev_choices" ]]; then
-    echo " fatal: no rev was found in $proj_folder"
-    echo " ${yellow_cor} rev -h${clear_cor} to see usage"
-    # cd "$REVS__pwd"
+    echo " no revs for $proj_folder"
+    echo " ${yellow_cor} rev${clear_cor} to open a review"
+    cd "$_pwd"
     return 1;
   fi
 
@@ -3003,28 +2161,22 @@ revs() {
     rev "$proj_arg" "${choice//rev./}" -q
   fi
 
-  # cd "$REVS__pwd"
+  cd "$_pwd"
   return 0;
 }
 
 rev() {
   if [[ "$1" == "-h" ]]; then
-    echo "${yellow_cor} rev${clear_cor} : to open a branch for review"
-    echo "${yellow_cor} rev <branch>${clear_cor} : to open $Z_PROJECT_SHORT_NAME's branch for review"
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} rev $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<branch>]${clear_cor} : to open $Z_PROJECT_SHORT_NAME_1's branch for review"
+    echo "${yellow_cor} rev${clear_cor} : open a pull request for review"
+    if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+      echo "${yellow_cor} rev${solid_yellow_cor} [<branch>]${clear_cor} : to open a review for $Z_CURRENT_PROJECT_SHORT_NAME"
     fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} rev $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<branch>]${clear_cor} : to open $Z_PROJECT_SHORT_NAME_2's branch for review"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} rev $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<branch>]${clear_cor} : to open $Z_PROJECT_SHORT_NAME_3's branch for review"
-    fi
+    echo "${yellow_cor} rev <pro>${solid_yellow_cor} [<branch>]${clear_cor} : to open a review for a project"
     return 0;
   fi
 
   if [[ $1 == -* ]]; then
-    eval "rev -h"
+    rev -h
     return 0;
   fi
 
@@ -3034,14 +2186,14 @@ rev() {
     return 1;
   fi
 
-  proj_arg="$Z_PROJECT_SHORT_NAME"
+  proj_arg="$Z_CURRENT_PROJECT_SHORT_NAME"
   branch_arg=""
 
   if [[ -n "$2" ]]; then
     proj_arg="$1"
     branch_arg="$2"
   elif [[ -n "$1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
+    if [[ "$1" =~ ^(Z_PROJECT_SHORT_NAME_[1-9]|Z_PROJECT_SHORT_NAME_10)$ ]]; then
       proj_arg="$1"
     else
       branch_arg="$1"
@@ -3050,71 +2202,41 @@ rev() {
 
   proj_repo=""
   proj_folder=""
-  _setup="";
-  _clone="";
-  code_editor="$Z_CODE_EDITOR";
+  _setup=""
+  _clone=""
+  code_editor="$Z_CURRENT_PROJECT_REPO"
 
-  if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-    check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-    if [[ -z "$Z_PROJECT_REPO_1" ]]; then
-      echo " type the repository uri you use for${solid_blue_cor} $proj_arg ${clear_cor}"
-      Z_PROJECT_REPO_1=$(gum input --placeholder="git@github.com:fab1o/pump-my-shell.git")
-      if [[ -z "$Z_PROJECT_REPO_1" ]]; then
-        return 1;
+  for i in {1..10}; do
+    if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      check_prj_ $i
+      if [ $? -ne 0 ]; then return 1; fi
+      
+      # If the repository URI is not set, ask for it
+      if [[ -z "${Z_PROJECT_REPO[$i]}" ]]; then
+        echo " type the repository uri you use for${solid_blue_cor} ${Z_PROJECT_SHORT_NAME[$i]} ${clear_cor}"
+        repo_value=$(gum input --placeholder="git@github.com:fab1o/pump-my-shell.git")
+        if [[ -z "$repo_value" ]]; then
+          return 1
+        fi
+        echo "  $repo_value"
+        update_config_ "$project_repo_var" "$repo_value"
+        echo ""
       fi
-      echo "  $Z_PROJECT_REPO_1"
-      update_config_ "Z_PROJECT_REPO_1" "$Z_PROJECT_REPO_1"
-      echo ""
+
+      proj_repo="${Z_PROJECT_REPO[$i]}"
+      proj_folder="${Z_PROJECT_FOLDER[$i]}"
+      _setup="${Z_SETUP[$i]}"
+      _clone="${Z_CLONE[$i]}"
+      code_editor="${Z_CODE_EDITOR[$i]}"
+      break
     fi
+  done
 
-    proj_repo="$Z_PROJECT_REPO_1"
-    proj_folder="$Z_PROJECT_FOLDER_1"
-    _setup="$Z_SETUP_1"
-    _clone="$Z_CLONE_1"
-    code_editor="$Z_CODE_EDITOR_1"
-
-  elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-    check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-    if [[ -z "$Z_PROJECT_REPO_2" ]]; then
-      echo " type the repository uri you use for${solid_blue_cor} $proj_arg ${clear_cor}"
-      Z_PROJECT_REPO_2=$(gum input --placeholder="git@github.com:fab1o/pump-my-shell.git")
-      if [[ -z "$Z_PROJECT_REPO_2" ]]; then
-        return 1;
-      fi
-      echo "  $Z_PROJECT_REPO_2"
-      update_config_ "Z_PROJECT_REPO_2" "$Z_PROJECT_REPO_2"
-      echo ""
-    fi
-
-    proj_repo="$Z_PROJECT_REPO_2"
-    proj_folder="$Z_PROJECT_FOLDER_2"
-    _setup="$Z_SETUP_2"
-    _clone="$Z_CLONE_2"
-    code_editor="$Z_CODE_EDITOR_2"
-
-  elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-    if [[ -z "$Z_PROJECT_REPO_3" ]]; then
-      echo " type the repository uri you use for${solid_blue_cor} $proj_arg ${clear_cor}"
-      Z_PROJECT_REPO_3=$(gum input --placeholder="git@github.com:fab1o/pump-my-shell.git")
-      if [[ -z "$Z_PROJECT_REPO_3" ]]; then
-        return 1;
-      fi
-      echo "  $Z_PROJECT_REPO_3"
-      update_config_ "Z_PROJECT_REPO_3" "$Z_PROJECT_REPO_3"
-      echo ""
-    fi
-
-    proj_repo="$Z_PROJECT_REPO_3"
-    proj_folder="$Z_PROJECT_FOLDER_3"
-    _setup="$Z_SETUP_3"
-    _clone="$Z_CLONE_3"
-    code_editor="$Z_CODE_EDITOR_3"
-
-  else
+  # If no valid project was found
+  if [[ -z "$proj_repo" ]]; then
     echo " fatal: not a valid project: $proj_arg"
     echo " ${yellow_cor} rev -h${clear_cor} to see usage"
-    return 1;
+    return 1
   fi
 
   if [[ -z "$proj_repo" || -z "$proj_folder" ]]; then
@@ -3175,9 +2297,9 @@ rev() {
   revs_folder=""
 
   # check if using the proj_folder as single clone mode
-  check_any_pkg_silent_ "$proj_folder"
-  if [[ $? -eq 0 ]]; then
-    revs_folder="$proj_folder-revs"
+  is_single_mode=$(check_any_pkg_silent_ "$proj_folder")
+  if [[ $is_single_mode -eq 0 ]]; then
+    revs_folder=".$proj_folder-revs"
   else
     revs_folder="$proj_folder/revs"
   fi
@@ -3230,10 +2352,7 @@ rev() {
     echo " cloning... $proj_repo";
     git clone $proj_repo "$full_rev_folder" --quiet
   fi
-  if [ $? -ne 0 ]; then
-    return 1;
-  fi
-  if [ $? -ne 0 ]; then
+  if [[ $? -ne 0 ]]; then
     return 1;
   fi
 
@@ -3246,7 +2365,7 @@ rev() {
   error_msg=""
   git checkout "$branch" --quiet
   git pull origin --quiet
-  if [ $? -ne 0 ]; then
+  if [[ $? -ne 0 ]]; then
     is_open_editor=1
     error_msg="${yellow_cor} warn: could not pull latest changes, probably already merged ${clear_cor}"
   fi
@@ -3332,115 +2451,81 @@ get_clone_default_branch_() { # $1 = repo uri # $2 = folder # $3 = branch to clo
 # clone my project and checkout branch
 clone() {
   if [[ "$1" == "-h" ]]; then
-    if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
-      echo "${yellow_cor} clone <branch>${clear_cor} : to clone $Z_PROJECT_SHORT_NAME branch"
-      echo "${yellow_cor} clone $Z_PROJECT_SHORT_NAME${solid_yellow_cor} [<branch>]${clear_cor} : to clone $Z_PROJECT_SHORT_NAME branch"
-      echo "${yellow_cor} clone $Z_PROJECT_SHORT_NAME ${solid_yellow_cor}<branch>${clear_cor} : to clone $Z_PROJECT_SHORT_NAME branch in multiple mode"
+    if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+      echo "${yellow_cor} clone <branch>${clear_cor} : to clone $Z_CURRENT_PROJECT_SHORT_NAME branch"
+      echo "${yellow_cor} clone $Z_CURRENT_PROJECT_SHORT_NAME${solid_yellow_cor} [<branch>]${clear_cor} : to clone $Z_CURRENT_PROJECT_SHORT_NAME branch"
     fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} clone $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<branch>]${clear_cor} : to clone $Z_PROJECT_SHORT_NAME_1 branch"
-      echo "${yellow_cor} clone $Z_PROJECT_SHORT_NAME_1 ${solid_yellow_cor}<branch>${clear_cor} : to clone $Z_PROJECT_SHORT_NAME_1 branch in multiple mode"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} clone $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<branch>]${clear_cor} : to clone $Z_PROJECT_SHORT_NAME_2 branch"
-      echo "${yellow_cor} clone $Z_PROJECT_SHORT_NAME_2 ${solid_yellow_cor}<branch>${clear_cor} : to clone $Z_PROJECT_SHORT_NAME_2 branch in multiple mode"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} clone $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<branch>]${clear_cor} : to clone $Z_PROJECT_SHORT_NAME_3 branch"
-      echo "${yellow_cor} clone $Z_PROJECT_SHORT_NAME_3 ${solid_yellow_cor}<branch>${clear_cor} : to clone $Z_PROJECT_SHORT_NAME_3 branch in multiple mode"
-    fi
+      echo "${yellow_cor} clone <pro>${solid_yellow_cor} [<branch>]${clear_cor} : to clone another project"
     return 0;
   fi
 
   if [[ $1 == -* ]]; then
-    eval "clone -h"
+    clone -h
     return 0;
   fi
 
-  proj_arg="$Z_PROJECT_SHORT_NAME"
+  proj_arg="$Z_CURRENT_PROJECT_SHORT_NAME"
   branch_arg=""
 
   if [[ -n "$2" ]]; then
     proj_arg="$1"
     branch_arg="$2"
   elif [[ -n "$1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      proj_arg="$1"
-    else
+    valid_project=0
+    for i in {1..10}; do
+      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        proj_arg="$1"
+        valid_project=1
+        break
+      fi
+    done
+    if [[ $valid_project -eq 0 ]]; then
       branch_arg="$1"
     fi
   else
-    pro_choices=("$Z_PROJECT_SHORT_NAME_1" "$Z_PROJECT_SHORT_NAME_2" "$Z_PROJECT_SHORT_NAME_3")
-    proj_arg=$(choose_auto_one_ "choose project to clone:" $pro_choices);
+    pro_choices=()
+    for i in {1..10}; do
+      if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        pro_choices+=("${Z_PROJECT_SHORT_NAME[$i]}")
+      fi
+    done
+
+    proj_arg=$(choose_auto_one_ "choose project to clone:" "${pro_choices[@]}")
     if [[ -z "$proj_arg" ]]; then
-      return 1;
+      return 1
     fi
   fi
 
   proj_repo=""
   proj_folder=""
-  _clone="";
+  _clone=""
   default_branch=""
   print_readme=1
 
-  if [[ -n "$$proj_arg" ]]; then
-    if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      if [[ -z "$Z_PROJECT_REPO_1" ]]; then
-        echo " type the repository uri you use for${solid_blue_cor} $proj_arg ${clear_cor}"
-        Z_PROJECT_REPO_1=$(input_from_ "git@github.com:fab1o/pump-my-shell.git")
-        if [[ -z "$Z_PROJECT_REPO_1" ]]; then
-          return 1;
+  if [[ -n "$proj_arg" ]]; then
+    for i in {1..10}; do
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        if [[ -z "${Z_PROJECT_REPO[$i]}" ]]; then
+          echo " type the repository uri you use for${solid_blue_cor} $proj_arg ${clear_cor}"
+          Z_PROJECT_REPO[$i]=$(input_from_ "git@github.com:fab1o/pump-my-shell.git")
+          if [[ -z "${Z_PROJECT_REPO[$i]}" ]]; then
+            return 1
+          fi
+          echo "  ${Z_PROJECT_REPO[$i]}"
+          update_config_ "Z_PROJECT_REPO_${i}" "${Z_PROJECT_REPO[$i]}"
+          echo ""
         fi
-        echo "  $Z_PROJECT_REPO_1"
-        update_config_ "Z_PROJECT_REPO_1" "$Z_PROJECT_REPO_1"
-        echo ""
-      fi
-  
-      check_prj_1_ -q
-      proj_repo="$Z_PROJECT_REPO_1"
-      proj_folder="$Z_PROJECT_FOLDER_1"
-      _clone="$Z_CLONE_1"
-      default_branch="$Z_DEFAULT_BRANCH_1"
-      print_readme="$Z_PRINT_README_1"
 
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      if [[ -z "$Z_PROJECT_REPO_2" ]]; then
-        echo " type the repository uri you use for${solid_blue_cor} $proj_arg ${clear_cor}"
-        Z_PROJECT_REPO_2=$(input_from_ "git@github.com:fab1o/pump-my-shell.git")
-        if [[ -z "$Z_PROJECT_REPO_2" ]]; then
-          return 1;
-        fi
-        echo "  $Z_PROJECT_REPO_2"
-        update_config_ "Z_PROJECT_REPO_2" "$Z_PROJECT_REPO_2"
-        echo ""
-      fi
+        check_prj_ $i -q; if [ $? -ne 0 ]; then return 1; fi
 
-      check_prj_2_ -q
-      proj_repo="$Z_PROJECT_REPO_2"
-      proj_folder="$Z_PROJECT_FOLDER_2"
-      _clone="$Z_CLONE_2"
-      default_branch="$Z_DEFAULT_BRANCH_2"
-      print_readme="$Z_PRINT_README_2"
-
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      if [[ -z "$Z_PROJECT_REPO_3" ]]; then
-        echo " type the repository uri you use for${solid_blue_cor} $proj_arg ${clear_cor}"
-        Z_PROJECT_REPO_3=$(input_from_ "git@github.com:fab1o/pump-my-shell.git")
-        if [[ -z "$Z_PROJECT_REPO_3" ]]; then
-          return 1;
-        fi
-        echo "  $Z_PROJECT_REPO_3"
-        update_config_ "Z_PROJECT_REPO_3" "$Z_PROJECT_REPO_3"
-        echo ""
+        proj_repo="${Z_PROJECT_REPO[$i]}"
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        _clone="${Z_CLONE[$i]}"
+        default_branch="${Z_DEFAULT_BRANCH[$i]}"
+        print_readme="${Z_PRINT_README[$i]}"
+        break
       fi
-  
-      check_prj_3_ -q
-      proj_repo="$Z_PROJECT_REPO_3"
-      proj_folder="$Z_PROJECT_FOLDER_3"
-      _clone="$Z_CLONE_3"
-      default_branch="$Z_DEFAULT_BRANCH_3"
-      print_readme="$Z_PRINT_README_3"
-    fi
+    done
   fi
 
   if [[ -z "$proj_repo" ]]; then
@@ -3456,18 +2541,18 @@ clone() {
   work_mode=""
 
   if [[ -d "$proj_folder" ]]; then
-    check_git_silent_ "$proj_folder";
-    if [ $? -eq 0 ]; then             # SINGLE MODE
+    is_single_mode=$(is_project_single_mode_ "$proj_folder")
+    if [ $is_single_mode -eq 0 ]; then             # SINGLE MODE
       echo "${solid_blue_cor} $proj_arg${clear_cor} already cloned in 'single mode': $proj_folder"
       echo ""
-      echo " to clone a different branch, you must start over in 'multiple mode':"
+      echo " to clone a different branch, you must start over in 'multi mode':"
       echo "  1. either delete:${yellow_cor} del \"$proj_folder\" ${clear_cor}"
       echo "     or change the entry in your pump.zshenv then${yellow_cor} refresh${clear_cor}"
       echo "  2. clone again:${yellow_cor} clone $proj_arg $branch_arg ${clear_cor}"
       return 1;
     else
       if [[ -n "$(ls -A "$proj_folder")" ]]; then
-        # is multiple mode
+        # is multi mode
         work_mode="m"
       fi
     fi
@@ -3513,22 +2598,22 @@ clone() {
 
     if [[ "$work_mode" == "s" ]]; then
       if [[ -d "$proj_folder" && -n "$(ls -A "$proj_folder")" ]]; then
-        echo "  ${solid_yellow_cor}project folder '$proj_folder' is not empty, going with multiple mode ${clear_cor}"
+        echo "  ${solid_yellow_cor}project folder '$proj_folder' is not empty, going with 'multi mode' ${clear_cor}"
       else
-        branch_to_clone=$(get_clone_default_branch_ "$proj_repo" "$proj_folder");
+        default_branch_to_clone=$(get_clone_default_branch_ "$proj_repo" "$proj_folder");
 
-        if [[ -z "$branch_to_clone" ]]; then
+        if [[ -z "$default_branch_to_clone" ]]; then
           return 0;
         fi
 
         if command -v gum &>/dev/null; then
-          gum spin --title "cloning... $proj_repo on $branch_to_clone" -- git clone --quiet $proj_repo "$proj_folder"
-          echo "   cloning... $proj_repo on $branch_to_clone"
+          gum spin --title "cloning... $proj_repo on $default_branch_to_clone" -- git clone --quiet $proj_repo "$proj_folder"
+          echo "   cloning... $proj_repo on $default_branch_to_clone"
         else
-          echo "  cloning... $proj_repo on $branch_to_clone"
+          echo "  cloning... $proj_repo on $default_branch_to_clone"
           git clone --quiet $proj_repo "$proj_folder"
         fi
-        if [ $? -ne 0 ]; then
+        if [[ $? -ne 0 ]]; then
           echo "  could not clone"
           if [[ -d "$proj_folder" ]]; then
             echo "  project folder already exists: $proj_folder"
@@ -3538,24 +2623,15 @@ clone() {
 
         pushd "$proj_folder" &>/dev/null
 
-        git config init.defaultBranch "$branch_to_clone"
-        git checkout "$branch_to_clone" --quiet
+        git config init.defaultBranch "$default_branch_to_clone"
+        git checkout "$default_branch_to_clone" --quiet &>/dev/null
 
-        if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-          PUMP_WORKING_BRANCH_1=$(git branch --show-current)
-          echo "$PUMP_WORKING_BRANCH_1" > "$PUMP_WORKING_BRANCH_FILE_1";
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-          PUMP_WORKING_BRANCH_2=$(git branch --show-current)
-          echo "$PUMP_WORKING_BRANCH_2" > "$PUMP_WORKING_BRANCH_FILE_2";
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-          PUMP_WORKING_BRANCH_3=$(git branch --show-current)
-          echo "$PUMP_WORKING_BRANCH_3" > "$PUMP_WORKING_BRANCH_FILE_3";
-        fi
+        save_pump_working_ "$proj_arg" "$(git branch --show-current)" "branch"
 
         #refresh >/dev/null 2>&1
 
         if [[ -n "$_clone" ]]; then
-          echo "   ${pink_cor}$_clone ${clear_cor}"
+          echo "  ${pink_cor}$_clone ${clear_cor}"
           eval "$_clone"
         fi
 
@@ -3571,7 +2647,7 @@ clone() {
         echo "  default branch is${bright_green_cor} $(git config --get init.defaultBranch) ${clear_cor}"
         echo ""
 
-        if [[ "$proj_arg" != "$Z_PROJECT_SHORT_NAME" ]]; then
+        if [[ "$proj_arg" != "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
           pro $proj_arg
         fi
         return 0;
@@ -3608,16 +2684,13 @@ clone() {
     fi
 
     if confirm_from_ "save '$default_branch' as the default branch for $proj_arg and don't ask again?"; then
-      if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-        update_config_ "Z_DEFAULT_BRANCH_1" "$default_branch"
-        Z_DEFAULT_BRANCH_1="$default_branch"
-      elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-        update_config_ "Z_DEFAULT_BRANCH_2" "$default_branch"
-        Z_DEFAULT_BRANCH_2="$default_branch"
-      elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        update_config_ "Z_DEFAULT_BRANCH_3" "$default_branch"
-        Z_DEFAULT_BRANCH_3="$default_branch"
-      fi
+      for i in {1..10}; do
+        if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+          update_config_ "Z_DEFAULT_BRANCH_${i}" "$default_branch"
+          Z_DEFAULT_BRANCH[$i]="$default_branch"
+          break
+        fi
+      done
       echo ""
     fi
   fi
@@ -3634,7 +2707,7 @@ clone() {
     echo "  cloning... $proj_repo on $branch_to_clone"
     git clone --quiet $proj_repo "$proj_folder/$branch_to_clone_folder"
   fi
-  if [ $? -ne 0 ]; then
+  if [[ $? -ne 0 ]]; then
     echo "  could not clone"
     if [[ -d "$proj_folder/$branch_to_clone_folder" ]]; then
       echo "  project folder exists: $proj_folder/$branch_to_clone_folder"
@@ -3642,7 +2715,12 @@ clone() {
     return 1;
   fi
 
+  # multiple mode
+
   pushd "$proj_folder/$branch_to_clone_folder" &>/dev/null
+  if [[ $? -eq 0 ]]; then
+    save_pump_working_ "$proj_arg" "$(PWD)" "folder"
+  fi
   
   git config init.defaultBranch $default_branch
 
@@ -3658,16 +2736,7 @@ clone() {
     fi
   fi
 
-  if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-    PUMP_WORKING_BRANCH_1=$(git branch --show-current)
-    echo "$PUMP_WORKING_BRANCH_1" > "$PUMP_WORKING_BRANCH_FILE_1";
-  elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-    PUMP_WORKING_BRANCH_2=$(git branch --show-current)
-    echo "$PUMP_WORKING_BRANCH_2" > "$PUMP_WORKING_BRANCH_FILE_2";
-  elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-    PUMP_WORKING_BRANCH_3=$(git branch --show-current)
-    echo "$PUMP_WORKING_BRANCH_3" > "$PUMP_WORKING_BRANCH_FILE_3";
-  fi
+  # multiple mode
 
   if [[ -n "$_clone" ]]; then
     echo "  ${pink_cor}$_clone ${clear_cor}"
@@ -3686,15 +2755,10 @@ clone() {
   echo "  default branch is${bright_green_cor} $(git config --get init.defaultBranch) ${clear_cor}"
   echo ""
 
-  if [[ "$proj_arg" != "$Z_PROJECT_SHORT_NAME" ]]; then
+  if [[ "$proj_arg" != "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
     pro $proj_arg
   fi
 }
-
-# Git -----------------------------------------------------------------------==
-alias pop="git stash pop --index"
-alias st="git status"
-alias stashes="git stash list"
 
 abort() {
   if [[ "$1" == "-h" ]]; then
@@ -3891,22 +2955,23 @@ recommit() {
     git reset --quiet --soft HEAD~1 >/dev/null
     if [ $? -ne 0 ]; then return 1; fi
 
-    if [[ -z "$Z_COMMIT_ADD" ]]; then
+    if [[ -z "$Z_CURRENT_COMMIT_ADD" ]]; then
       if confirm_from_ "do you want to recommit all changes with '$last_commit_msg'?"; then
         git add .
+
         if confirm_from_ "save this preference and don't ask again?"; then
-          if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-            update_config_ "Z_COMMIT_ADD_1" 1
-          elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-            update_config_ "Z_COMMIT_ADD_2" 1
-          elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-            update_config_ "Z_COMMIT_ADD_3" 1
-          fi
-          Z_COMMIT_ADD=1
+          for i in {1..10}; do
+            if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+              update_config_ "Z_COMMIT_ADD_${i}" 1
+              Z_CURRENT_COMMIT_ADD=1
+              break
+            fi
+          done
+
           echo ""
         fi
       fi
-    elif [[ $Z_COMMIT_ADD -eq 1 ]]; then
+    elif [[ $Z_CURRENT_COMMIT_ADD -eq 1 ]]; then
       git add .
     fi
   else
@@ -3922,7 +2987,6 @@ recommit() {
   if [[ $? -eq 0 && "$1" != "-q" ]]; then
     echo ""
     git log -1 --pretty=format:'%H %s' | xargs -0
-    echo ""
   fi
 }
 
@@ -3938,34 +3002,22 @@ commit() {
 
   if [[ "$1" == "-a" ]]; then
     git add .
-  elif [[ -z "$Z_COMMIT_ADD" ]]; then
-    if confirm_from_ "do you want to recommit all changes?"; then
+  elif [[ -z "$Z_CURRENT_COMMIT_ADD" ]]; then
+    if confirm_from_ "do you want to commit all changes?"; then
       git add .
+
       if confirm_from_ "save this preference and don't ask again?"; then
-        if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-          update_config_ "Z_COMMIT_ADD_1" 1
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-          update_config_ "Z_COMMIT_ADD_2" 1
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-          update_config_ "Z_COMMIT_ADD_3" 1
-        fi
-        Z_COMMIT_ADD=1
-        echo ""
-      fi
-    else
-      if confirm_from_ "save this preference and don't ask again?"; then
-        if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-          update_config_ "Z_COMMIT_ADD_1" 0
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-          update_config_ "Z_COMMIT_ADD_2" 0
-        elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-          update_config_ "Z_COMMIT_ADD_3" 0
-        fi
-        Z_COMMIT_ADD=0
+        for i in {1..10}; do
+          if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+            update_config_ "Z_COMMIT_ADD_${i}" 1
+            Z_CURRENT_COMMIT_ADD=1
+            break
+          fi
+        done
         echo ""
       fi
     fi
-  elif [[ $Z_COMMIT_ADD -eq 1 ]]; then
+  elif [[ $Z_CURRENT_COMMIT_ADD -eq 1 ]]; then
     git add .
   fi
 
@@ -4084,7 +3136,6 @@ push() {
   if [[ $? -eq 0 && "$1" != "-q" && "$1" != "tags" ]]; then
     echo ""
     git log -1 --pretty=format:'%H %s' | xargs -0
-    echo ""
   fi
 }
 
@@ -4107,7 +3158,6 @@ pushf() {
   if [[ $? -eq 0 && "$1" != "-q" && "$1" != "tags" ]]; then
     echo ""
     git log -1 --pretty=format:'%H %s' | xargs -0
-    echo ""
   fi
 }
 
@@ -4165,7 +3215,6 @@ pull() {
   if [[ $? -eq 0 && "$1" != "-q" && "$1" != "tags" ]]; then
     echo ""
     git log -1 --pretty=format:'%H %s' | xargs -0
-    echo ""
   fi
 }
 
@@ -4554,14 +3603,14 @@ gha_auto_() {
 
     extracted_repo=""
 
-    if [[ "$Z_PROJECT_REPO" == git@*:* ]]; then
+    if [[ "$Z_CURRENT_PROJECT_REPO" == git@*:* ]]; then
       # SSH-style: git@host:user/repo.git
-      if [[ "$Z_PROJECT_REPO" =~ '^[^@]+@[^:]+:([^[:space:]]+)(\.git)?$' ]]; then
+      if [[ "$Z_CURRENT_PROJECT_REPO" =~ '^[^@]+@[^:]+:([^[:space:]]+)(\.git)?$' ]]; then
         extracted_repo="${match[1]}"
       fi
-    elif [[ "$Z_PROJECT_REPO" == http*://* ]]; then
+    elif [[ "$Z_CURRENT_PROJECT_REPO" == http*://* ]]; then
       # HTTPS-style: https://host/user/repo(.git)
-      if [[ "$Z_PROJECT_REPO" =~ '^https\?*://[^/]+/([^[:space:]]+)(\.git)?$' ]]; then
+      if [[ "$Z_CURRENT_PROJECT_REPO" =~ '^https\?*://[^/]+/([^[:space:]]+)(\.git)?$' ]]; then
         extracted_repo="${match[1]}"
       fi
     fi
@@ -4578,17 +3627,9 @@ gha_auto_() {
 
 gha() {
   if [[ "$1" == "-h" ]]; then
-    echo "${yellow_cor} gha -a${clear_cor} : to run in auto mode"
     echo "${yellow_cor} gha${solid_yellow_cor} [<workflow>]${clear_cor} : to check status of workflow in current project"
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} gha $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<workflow>]${clear_cor} : to check status of $Z_PROJECT_SHORT_NAME_1's workflow"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} gha $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<workflow>]${clear_cor} : to check status of $Z_PROJECT_SHORT_NAME_2's workflow"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} gha $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<workflow>]${clear_cor} : to check status of $Z_PROJECT_SHORT_NAME_3's workflow"
-    fi
+    echo "${yellow_cor} gha -a${clear_cor} : to run in auto mode"
+    echo "${yellow_cor} gha <pro>${solid_yellow_cor} [<workflow>]${clear_cor} : to check status of a workflow for a project"
     return 0;
   fi
 
@@ -4598,10 +3639,11 @@ gha() {
     return 1;
   fi
 
-  workflow_arg="";
-  proj_arg="";
-  _mode="";
+  workflow_arg=""
+  proj_arg=""
+  _mode=""
 
+  # Parse arguments
   if [[ -n "$3" ]]; then
     if [[ "$1" == "-a" ]]; then
       _mode="$1"
@@ -4614,68 +3656,76 @@ gha() {
     else
       echo " fatal: invalid arguments"
       echo " ${yellow_cor} gha -h${clear_cor} to see usage"
-      return 1;
+      return 1
     fi
   elif [[ -n "$2" ]]; then
     if [[ "$2" == "-a" ]]; then
       _mode="$2"
-      if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        proj_arg="$1"
-      else
-        workflow_arg="$1"
-      fi
+      for i in {1..10}; do
+        if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+          proj_arg="$1"
+          break
+        fi
+      done
+      [[ -z "$proj_arg" ]] && workflow_arg="$1"
     elif [[ "$1" == "-a" ]]; then
       _mode="$1"
-      if [[ "$2" == "$Z_PROJECT_SHORT_NAME_1" || "$2" == "$Z_PROJECT_SHORT_NAME_2" || "$2" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        proj_arg="$2"
-      else
-        workflow_arg="$2"
-      fi
+      for i in {1..10}; do
+        if [[ "$2" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+          proj_arg="$2"
+          break
+        fi
+      done
+      [[ -z "$proj_arg" ]] && workflow_arg="$2"
     else
-      if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        proj_arg="$1"
-      else
-        workflow_arg="$2"
-      fi
+      for i in {1..10}; do
+        if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+          proj_arg="$1"
+          break
+        fi
+      done
+      [[ -z "$proj_arg" ]] && workflow_arg="$2"
     fi
   elif [[ -n "$1" ]]; then
     if [[ "$1" == "-a" ]]; then
       _mode="$1"
     else
-      if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        proj_arg="$1"
-      else
-        workflow_arg="$1"
-      fi
+      for i in {1..10}; do
+        if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+          proj_arg="$1"
+          break
+        fi
+      done
+      [[ -z "$proj_arg" ]] && workflow_arg="$1"
     fi
   fi
 
-  proj_folder="$(PWD)" # default is current folder
-  gha_interval="";
+  proj_folder="$(PWD)"  # default is current folder
+  gha_interval=""
   gha_workflow=""
 
+  # Set project parameters
   if [[ -n "$proj_arg" ]]; then
-    if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_1"
-      gha_interval=$Z_GHA_INTERVAL_1
-      gha_workflow="$Z_GHA_WORKFLOW_1"
+    found=0
+    for i in {1..10}; do
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        found=1
+        check_prj_ $i; if [ $? -ne 0 ]; then return 1; fi
 
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_2"
-      gha_interval=$Z_GHA_INTERVAL_2
-      gha_workflow="$Z_GHA_WORKFLOW_2"
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        gha_interval="${Z_GHA_INTERVAL[$i]}"
+        gha_workflow="${Z_GHA_WORKFLOW[$i]}"
+        break
+      fi
+    done
 
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_3"
-      gha_interval=$Z_GHA_INTERVAL_3
-      gha_workflow="$Z_GHA_WORKFLOW_3"
-    else
+    if [[ "$found" -ne 1 ]]; then
       echo " invalid project name: $proj_arg"
-      echo " valid project names are: $Z_PROJECT_SHORT_NAME_1, $Z_PROJECT_SHORT_NAME_2, $Z_PROJECT_SHORT_NAME_3"
-      return 1;
+      if [[ -n "${Z_PROJECT_SHORT_NAME[*]}" ]]; then
+        echo -n " valid project names are:"
+        for i in {1..10}; do echo -n " ${Z_PROJECT_SHORT_NAME[$i]}"; done
+      fi
+      return 1
     fi
   fi
 
@@ -4707,20 +3757,19 @@ gha() {
     # ask to save the workflow
     if [[ -n "$proj_arg" ]]; then
       if confirm_from_ "would you like to save '$chosen_workflow' as the default workflow for this project?"; then
-        if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-          update_config_ "Z_GHA_WORKFLOW_1" "$chosen_workflow"
-          Z_GHA_WORKFLOW_1="$chosen_workflow"
-        elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-          update_config_ "Z_GHA_WORKFLOW_2" "$chosen_workflow"
-          Z_GHA_WORKFLOW_2="$chosen_workflow"
-        elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-          update_config_ "Z_GHA_WORKFLOW_3" "$chosen_workflow"
-          Z_GHA_WORKFLOW_3="$chosen_workflow"
-        fi
+        for i in {1..10}; do
+          if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+            Z_GHA_WORKFLOW[$i]="$chosen_workflow"
+            update_config_ "Z_GHA_WORKFLOW_$i" "$chosen_workflow"
+            break
+          fi
+        done
         echo ""
       fi
     fi
+
     gha_workflow="$chosen_workflow"
+
   elif [[ -n "$workflow_arg" ]]; then
     gha_workflow="$workflow_arg"
   fi
@@ -4729,20 +3778,24 @@ gha() {
     if [[ -z "$gha_interval" ]]; then
       gha_interval=10
     fi
+
     echo " running every $gha_interval minutes, press cmd+c to stop"
     echo ""
 
     while true; do
       echo " checking workflow${purple_cor} $gha_workflow${clear_cor}..."
       gha_auto_ "$proj_folder" "$gha_workflow"
+      
       if [[ $? -ne 0 ]]; then
         return 1;
       fi
+      
       echo ""
       echo " sleeping $gha_interval minutes..."
       sleep $(($gha_interval * 60))
     done
   fi
+  
   echo " checking workflow${purple_cor} $gha_workflow${clear_cor}..."
   gha_auto_ "$proj_folder" "$gha_workflow"
 }
@@ -4762,7 +3815,7 @@ co() {
   fi
 
   if [[ "$1" == "-" ]]; then
-    eval "co -h"
+    co -h
     return 0;
   fi
 
@@ -4856,17 +3909,14 @@ co() {
     if [[ -n "$1" && -n "$2" ]]; then
       pump_past_branch="$(git branch --show-current)"
       if [[ "$1" == "-b" ]]; then
-        git checkout -b "$2"
-        if [ $? -eq 0 ]; then
-          PUMP_PAST_BRANCH="$pump_past_branch"
-          return 0;
-        fi
+        if [[ "$3" == "-q" ]]; then git checkout -b "$2" --quiet &>/dev/null; else git checkout -b "$2"; fi
       else
-        git checkout -b "$1"
-        if [ $? -eq 0 ]; then
-          PUMP_PAST_BRANCH="$pump_past_branch"
-          return 0;
-        fi
+        if [[ "$3" == "-q" ]]; then git checkout -b "$1" --quiet &>/dev/null; else git checkout -b "$1"; fi
+      fi
+      if [[ $? -eq 0 ]]; then
+        PUMP_PAST_="$pump_past_branch"
+        PUMP_PAST_BRANCH_OR_FOLDER_="branch"
+        return 0;
       fi
     else
       echo " fatal: branch is required"
@@ -4881,17 +3931,14 @@ co() {
     if [[ -n "$1" && -n "$2" ]]; then
       pump_past_branch="$(git branch --show-current)"
       if [[ "$1" == "-e" ]]; then
-        if [[ $3 -eq 1 ]]; then git switch "$2" --quiet &>/dev/null; else git switch "$2" --quiet; fi
-        if [ $? -eq 0 ]; then
-          PUMP_PAST_BRANCH="$pump_past_branch"
-          return 0;
-        fi
+        if [[ "$3" == "-q" ]]; then git switch "$2" --quiet &>/dev/null; else git switch "$2" --quiet; fi
       else
-        if [[ $3 -eq 1 ]]; then git switch "$1" --quiet &>/dev/null; else git switch "$1" --quiet; fi
-        if [ $? -eq 0 ]; then
-          PUMP_PAST_BRANCH="$pump_past_branch"
-          return 0;
-        fi
+        if [[ "$3" == "-q" ]]; then git switch "$1" --quiet &>/dev/null; else git switch "$1" --quiet; fi
+      fi
+      if [[ $? -eq 0 ]]; then
+        PUMP_PAST_="$pump_past_branch"
+        PUMP_PAST_BRANCH_OR_FOLDER_="branch"
+        return 0;
       fi
     else
       echo " fatal: branch is required"
@@ -4943,79 +3990,67 @@ co() {
   git switch $branch
   if [ $? -ne 0 ]; then return 1; fi
 
-  PUMP_PAST_BRANCH="$pump_past_branch" # svae this for back() function
+  PUMP_PAST_="$pump_past_branch" # svae this for back() function
+  PUMP_PAST_BRANCH_OR_FOLDER_="branch"
 
-  if [[ -n "$Z_PROJECT_FOLDER" && -n "$Z_PROJECT_SHORT_NAME" && -d "$Z_PROJECT_FOLDER" ]]; then
-    check_git_silent_ "$Z_PROJECT_FOLDER";
-    if [ $? -eq 0 ]; then
-      if ! confirm_from_ "save '$branch' as working branch? running "$'\e[34m'$Z_PROJECT_SHORT_NAME$'\e[0m'" will take you back to this branch?"; then
+
+  if [[ -n "$Z_CURRENT_PROJECT_FOLDER" ]]; then
+    is_single_mode=$(is_project_single_mode_ "$Z_CURRENT_PROJECT_FOLDER")
+    if [[ $is_single_mode -eq 0 ]]; then
+      if ! confirm_from_ "save '$branch' as working branch? running "$'\e[34m'$Z_CURRENT_PROJECT_SHORT_NAME$'\e[0m'" will take you back to this branch?"; then
         return 0;
       fi
     fi
-  fi
-
-  if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then
-    if [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      PUMP_WORKING_BRANCH_1=$(git branch --show-current)
-      echo "$PUMP_WORKING_BRANCH_1" > "$PUMP_WORKING_BRANCH_FILE_1";
-    elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      PUMP_WORKING_BRANCH_2=$(git branch --show-current)
-      echo "$PUMP_WORKING_BRANCH_2" > "$PUMP_WORKING_BRANCH_FILE_2";
-    elif [[ "$Z_PROJECT_SHORT_NAME" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      PUMP_WORKING_BRANCH_3=$(git branch --show-current)
-      echo "$PUMP_WORKING_BRANCH_3" > "$PUMP_WORKING_BRANCH_FILE_3";
-    fi
+    save_pump_working_ "$Z_CURRENT_PROJECT_SHORT_NAME" "$(git branch --show-current)" "$branch"
   fi
 }
 
 back() {
   if [[ "$1" == "-h" ]]; then
-    echo "${yellow_cor} back${clear_cor} : to go back to previous branch if switched"
+    echo "${yellow_cor} back${clear_cor} : to go back to previous branch (in single mode) or folder (in multi mode)"
     return 0;
   fi
 
   check_git_; if [ $? -ne 0 ]; then return 1; fi
 
-  if [[ -n "$PUMP_PAST_BRANCH" ]]; then
-    co "$PUMP_PAST_BRANCH"
+  if [[ -z "$PUMP_PAST_" ]]; then
+    return 0;
+  fi
+
+  if [[ "$PUMP_PAST_BRANCH_OR_FOLDER_" == "branch" ]]; then
+    co -e "$PUMP_PAST_"
+  else
+    if [[ -d "$PUMP_PAST_" ]]; then
+      cd "$PUMP_PAST_"
+    fi
   fi
 }
 
 # checkout dev or develop branch
 dev() {
   if [[ "$1" == "-h" ]]; then
-      echo "${yellow_cor} dev${clear_cor} : to switch to dev in current project"
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} dev $Z_PROJECT_SHORT_NAME_1 ${clear_cor} : to switch to dev in $Z_PROJECT_SHORT_NAME_1"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} dev $Z_PROJECT_SHORT_NAME_2 ${clear_cor} : to switch to dev in $Z_PROJECT_SHORT_NAME_2"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} dev $Z_PROJECT_SHORT_NAME_3 ${clear_cor} : to switch to dev in $Z_PROJECT_SHORT_NAME_3"
-    fi
+      echo "${yellow_cor} dev${clear_cor} : to switch to dev or develop in current project"
+      echo "${yellow_cor} dev <pro>${clear_cor} : to switch to dev or develop for a project"
     return 0;
   fi
 
   proj_folder="$(PWD)"
 
   if [[ -n "$1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_1"
+    for i in {1..10}; do
+      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        check_prj_ $i
+        if [ $? -ne 0 ]; then return 1; fi
 
-    elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_2"
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        break
+      fi
+    done
 
-    elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_3"
-
-    else
+    if [[ -z "$proj_folder" ]]; then
       echo " fatal: not a valid project: $1"
       echo " ${yellow_cor} dev -h${clear_cor} to see usage"
-      return 1;
+      return 1
     fi
   fi
 
@@ -5058,38 +4093,22 @@ dev() {
 main() {
   if [[ "$1" == "-h" ]]; then
       echo "${yellow_cor} main${clear_cor} : to switch to main in current project"
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} main $Z_PROJECT_SHORT_NAME_1 ${clear_cor}: to switch to main in $Z_PROJECT_SHORT_NAME_1"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} main $Z_PROJECT_SHORT_NAME_2 ${clear_cor}: to switch to main in $Z_PROJECT_SHORT_NAME_2"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} main $Z_PROJECT_SHORT_NAME_3 ${clear_cor}: to switch to main in $Z_PROJECT_SHORT_NAME_3"
-    fi
+      echo "${yellow_cor} main <pro>${clear_cor}: to switch to main for a project"
     return 0;
   fi
 
   proj_folder="$(PWD)"
 
   if [[ -n "$1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_1"
+    for i in {1..10}; do
+      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        check_prj_ $i
+        if [ $? -ne 0 ]; then return 1; fi
 
-    elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_2"
-
-    elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_3"
-
-    else
-      echo " fatal: not a valid project: $1"
-      echo " ${yellow_cor} main -h${clear_cor} to see usage"
-      return 1;
-    fi
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        break
+      fi
+    done
   fi
 
   _pwd="$(PWD)"
@@ -5130,39 +4149,23 @@ main() {
 # checkout stage branch
 stage() {
   if [[ "$1" == "-h" ]]; then
-      echo "${yellow_cor} stage${clear_cor} : to switch to stage in current project"
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} stage $Z_PROJECT_SHORT_NAME_1 ${clear_cor}: to switch to stage in $Z_PROJECT_SHORT_NAME_1"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} stage $Z_PROJECT_SHORT_NAME_2 ${clear_cor}: to to switch to stage in $Z_PROJECT_SHORT_NAME_2"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} stage $Z_PROJECT_SHORT_NAME_3 ${clear_cor}: to to switch to stage in $Z_PROJECT_SHORT_NAME_3"
-    fi
+      echo "${yellow_cor} stage${clear_cor} : to switch to stage or staging in current project"
+      echo "${yellow_cor} stage <pro>${clear_cor}: to switch to stage or staging for a project"
     return 0;
   fi
 
   proj_folder="$(PWD)"
 
   if [[ -n "$1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_1"
+    for i in {1..10}; do
+      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        check_prj_ $i
+        if [ $? -ne 0 ]; then return 1; fi
 
-    elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_2"
-
-    elif [[ "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_3"
-
-    else
-      echo " fatal: not a valid project: $1"
-      echo " ${yellow_cor} stage -h${clear_cor} to see usage"
-      return 1;
-    fi
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        break
+      fi
+    done
   fi
 
   _pwd="$(PWD)"
@@ -5271,19 +4274,11 @@ prune() {
 # list branches and select one to delete or delete $1
 delb() {
   if [[ "$1" == "-h" ]]; then
+    if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then 
+      echo "${yellow_cor} delb${solid_yellow_cor} [<branch>]${clear_cor} : to find branches to delete in $Z_CURRENT_PROJECT_SHORT_NAME"
+    fi
     echo "${yellow_cor} delb -f${clear_cor} : to delete default braches too"
-    if [[ -n "$Z_PROJECT_SHORT_NAME" ]]; then 
-      echo "${yellow_cor} delb${solid_yellow_cor} [<branch>]${clear_cor} : to find branches to delete"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_1" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      echo "${yellow_cor} delb $Z_PROJECT_SHORT_NAME_1${solid_yellow_cor} [<branch>]${clear_cor} : to find branches to delete in $Z_PROJECT_SHORT_NAME_1"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_2" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      echo "${yellow_cor} delb $Z_PROJECT_SHORT_NAME_2${solid_yellow_cor} [<branch>]${clear_cor} : to find branches to delete in $Z_PROJECT_SHORT_NAME_2"
-    fi
-    if [[ -n "$Z_PROJECT_SHORT_NAME_3" && "$Z_PROJECT_SHORT_NAME" != "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      echo "${yellow_cor} delb $Z_PROJECT_SHORT_NAME_3${solid_yellow_cor} [<branch>]${clear_cor} : to find branches to delete in $Z_PROJECT_SHORT_NAME_3"
-    fi
+    echo "${yellow_cor} delb <pro>${solid_yellow_cor} [<branch>]${clear_cor} : to find branches to delete in a project"
     return 0;
   fi
 
@@ -5305,39 +4300,46 @@ delb() {
     proj_arg="$1"
     branch_arg="$2"
   elif [[ -n "$1" && "$1" != "-1" ]]; then
-    if [[ "$1" == "$Z_PROJECT_SHORT_NAME_1" || "$1" == "$Z_PROJECT_SHORT_NAME_2" || "$1" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      proj_arg="$1"
-    else
+    # Check if the first argument matches any of the project names dynamically
+    for i in {1..10}; do
+      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        proj_arg="$1"
+        break
+      fi
+    done
+
+    # If it's not a project name, treat it as a branch argument
+    if [[ -z "$proj_arg" ]]; then
       branch_arg="$1"
     fi
   fi
 
-  proj_folder=""
+  proj_folder="$(PWD)"
   pump_working_branch=""
 
   if [[ -n "$proj_arg" ]]; then
-    if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-      check_prj_1_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_1"
-      pump_working_branch="$PUMP_WORKING_BRANCH_1"
+    # Loop through project numbers from 1 to 10
+    for i in {1..10}; do
+      # Check if the project name matches
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        check_prj_ $i
+        if [ $? -ne 0 ]; then return 1; fi
 
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-      check_prj_2_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_2"
-      pump_working_branch="$PUMP_WORKING_BRANCH_2"
-
-    elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-      check_prj_3_; if [ $? -ne 0 ]; then return 1; fi
-      proj_folder="$Z_PROJECT_FOLDER_3"
-      pump_working_branch="$PUMP_WORKING_BRANCH_3"
-
-    else
-      echo " fatal: not a valid project: $proj_arg"
-      echo " ${yellow_cor} delb -h${clear_cor} to see usage"
-      return 1;
+        proj_folder="${Z_PROJECT_FOLDER[$i]}"
+        pump_working_branch="${PUMP_WORKING[$i]}"
+        break
+      fi
+    done
+    
+    # If no project matched, show an error
+    if [[ -z "$proj_folder" ]]; then
+      echo " invalid project name: $proj_arg"
+      if [[ -n "${Z_PROJECT_SHORT_NAME[*]}" ]]; then
+        echo -n " valid project names are:"
+        for i in {1..10}; do echo -n " ${Z_PROJECT_SHORT_NAME[$i]}"; done
+      fi
+      return 1
     fi
-  else
-    proj_folder="$(PWD)"
   fi
   
   _pwd="$(PWD)";
@@ -5381,40 +4383,981 @@ delb() {
   fi
 
   if [[ $is_deleted -eq 0 ]]; then
-    if [[ -z "$pump_working_branch" && -z "$proj_arg" ]]; then
-      proj_arg=$(which_pro_pwd)
-      if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-        pump_working_branch="$PUMP_WORKING_BRANCH_1"
-      elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-        pump_working_branch="$PUMP_WORKING_BRANCH_2"
-      elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-        pump_working_branch="$PUMP_WORKING_BRANCH_3"
-      fi
-    fi
-    if [[ -n "$pump_working_branch" && -n "$proj_arg" ]]; then
-      for branch in $selected_branches; do
-        if [[ "$branch" == "$pump_working_branch" ]]; then
-          if [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_1" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_1"
-            PUMP_WORKING_BRANCH_1=""
-          elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_2" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_2"
-            PUMP_WORKING_BRANCH_2=""
-          elif [[ "$proj_arg" == "$Z_PROJECT_SHORT_NAME_3" ]]; then
-            rm -f "$PUMP_WORKING_BRANCH_FILE_3"
-            PUMP_WORKING_BRANCH_3=""
-          fi
-        fi
-      done
-    fi
+    delete_pump_workings_ "$pump_working_branch" "$proj_arg" "$selected_branches"
   fi
 
   cd "$_pwd"
 }
 
-update_
+save_pump_working_(){
+  proj_arg="$1"
+  pump_working_branch="$2"
+  type="$3"
+
+  if [[ -z "$pump_working_branch" || -z "$proj_arg" ]]; then
+    return 0;
+  fi
+
+  PUMP_PAST_="$pump_working_branch"
+  PUMP_PAST_BRANCH_OR_FOLDER_=$type
+
+  for i in {1..10}; do
+    if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      PUMP_WORKING[$i]="$pump_working_branch"
+      echo "${PUMP_WORKING[$i]}" > "${PUMP_WORKING_FILE[$i]}"
+      break
+    fi
+  done
+}
+
+delete_pump_working_(){
+  item="$1"
+  pump_working_branch="$2"
+  proj_arg="$3"
+
+  if [[ -z "$pump_working_branch" || -z "$proj_arg" ]]; then
+    return 0;
+  fi
+
+  if [[ "$item" == "$pump_working_branch" ]]; then
+    for i in {1..10}; do
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        rm -f "${PUMP_WORKING_FILE[$i]}"
+        PUMP_WORKING[$i]=""
+        break
+      fi
+    done
+  fi
+}
+
+delete_pump_workings_(){
+  pump_working_branch="$1"
+  proj_arg="$2"
+  selected_items="$3"
+
+  if [[ -z "$pump_working_branch" || -z "$proj_arg" ]]; then
+    return 0;
+  fi
+
+  for item in $selected_items; do
+    delete_pump_working_ "$item" "$pump_working_branch" "$proj_arg"
+  done
+}
+
+pop() {
+  if [[ "$1" == "-h" ]]; then
+    echo "${yellow_cor} pop${clear_cor} : to pop stash"
+    echo "${yellow_cor} pop -a${clear_cor} : to pop all stashes"
+    return 0;
+  fi
+
+  check_git_; if [ $? -ne 0 ]; then return 1; fi
+
+  if [[ "$1" == "-a" ]]; then
+    git stash list | awk '{print $1}' | xargs git stash pop --index
+  else
+    git stash pop --index
+  fi
+}
+
+st() {
+  if [[ "$1" == "-h" ]]; then
+    echo "${yellow_cor} st${clear_cor} : to show git status"
+    return 0;
+  fi
+
+  check_git_; if [ $? -ne 0 ]; then return 1; fi
+
+  git status
+}
+
+stashes() {
+  if [[ "$1" == "-h" ]]; then
+    echo "${yellow_cor} stashes${clear_cor} : to show git stashes"
+    return 0;
+  fi
+
+  check_git_; if [ $? -ne 0 ]; then return 1; fi
+
+  git stash list
+}
+
+# projects linked list ===========================================================
+typeset -A ll_next ll_prev node_type node_value
+typeset -A project_heads project_folders
+typeset -a project_names
+typeset -gi node_counter=0
+typeset -g head=""
+
+
+clear_projects() {
+  unset ll_next ll_prev node_type node_value head node_counter project_names
+  typeset -A ll_next ll_prev node_type node_value
+  typeset -A project_heads project_folders
+  typeset -gi node_counter=0
+  typeset -g head=""
+  typeset -a project_names
+}
+
+create_project() {
+  local name=$1
+  local folder=$2
+
+  project_names+=$name
+  project_folders[$name]=$folder
+  project_heads[$name]=""
+}
+
+add_project_node() {
+  local project=$1
+  local _type=$2
+  local _value=$3
+
+  local node_id="${project}_node$((++node_counter))"
+
+  node_type[$node_id]=$_type
+  node_value[$node_id]=$_value
+
+  local head=${project_heads[$project]}
+  if [[ -z $head ]]; then
+    # First node
+    ll_next[$node_id]=$node_id
+    ll_prev[$node_id]=$node_id
+    project_heads[$project]=$node_id
+  else
+    local tail=${ll_prev[$head]}
+    ll_next[$tail]=$node_id
+    ll_prev[$node_id]=$tail
+    ll_next[$node_id]=$head
+    ll_prev[$head]=$node_id
+  fi
+}
+
+# Print the list forward
+# print_list() {
+#   local current=$head
+#   if [[ -z $current ]]; then
+#     echo "List is empty"
+#     return
+#   fi
+
+#   echo "List contents:"
+#   while true; do
+#     echo "$current -> node_type=${node_type[$current]}, node_value=${node_value[$current]}"
+#     current=${ll_next[$current]}
+#     [[ $current == $head ]] && break
+#   done
+# }
+
+# Remove node by matching node_type and node_value
+# remove_node() {
+#   local target_type=$1
+#   local target_value=$2
+
+#   local current=$head
+#   [[ -z $current ]] && return
+
+#   while true; do
+#     if [[ "${node_type[$current]}" == "$target_type" && "${node_value[$current]}" == "$target_value" ]]; then
+#       local p=${ll_prev[$current]}
+#       local n=${ll_next[$current]}
+
+#       # Remove from list
+#       ll_next[$p]=$n
+#       ll_prev[$n]=$p
+
+#       # If head is being removed, update it
+#       [[ $current == $head ]] && head=$n
+#       # If it was the only node
+#       [[ $current == $n ]] && head=""
+
+#       # Delete node data
+#       unset node_type[$current] node_value[$current] ll_next[$current] ll_prev[$current]
+#       echo "Removed $current"
+#       return
+#     fi
+#     current=${ll_next[$current]}
+#     [[ $current == $head ]] && break
+#   done
+# }
+
+traverse_project() {
+  local project=$1
+  local current=${project_heads[$project]}
+
+  if [[ -z $current ]]; then
+    return
+  fi
+
+  while true; do
+    # Just print the node data; don't modify anything
+    echo "$current -> type=${node_type[$current]}, value=${node_value[$current]}"
+    current=${ll_next[$current]}
+    
+    # Stop when we circle back to the head (since it's circular)
+    [[ $current == ${project_heads[$project]} ]] && break
+  done
+}
+
+traverse_project_backward() {
+  local project=$1
+  local head=${project_heads[$project]}
+  local tail=${ll_prev[$head]}
+
+  if [[ -z $tail ]]; then
+    return
+  fi
+
+  local current=$tail
+  while true; do
+    echo "$current -> type=${node_type[$current]}, value=${node_value[$current]}"
+    current=${ll_prev[$current]}
+    [[ $current == $tail ]] && break
+  done
+}
+
+traverse_projects() {
+  for project in $project_names; do
+    local current=${project_heads[$project]}
+
+    if [[ -z $current ]]; then
+      continue
+    fi
+
+    while true; do
+      echo "$current -> type=${node_type[$current]}, value=${node_value[$current]}"
+      current=${ll_next[$current]}
+      [[ $current == ${project_heads[$project]} ]] && break
+    done
+    echo ""
+  done
+}
+
+# traverse_projects_backwards() {
+#   for project in $project_names; do
+#     local tail=${ll_prev[${project_heads[$project]}]}
+#     if [[ -z $tail ]]; then
+#       continue
+#     fi
+
+#     local current=$tail
+#     while true; do
+#       echo "$current -> type=${node_type[$current]}, value=${node_value[$current]}"
+#       current=${ll_prev[$current]}
+      
+#       [[ $current == $tail ]] && break
+#     done
+#   done
+# }
+
+# traverse_forward() {
+#   local current=$head
+#   if [[ -z $current ]]; then
+#     # List is empty
+#     return 0;
+#   fi
+
+#   while true; do
+#     echo "$current -> node_type=${node_type[$current]}, node_value=${node_value[$current]}"
+#     current=${ll_next[$current]}
+#     [[ $current == $head ]] && break
+#   done
+# }
+
+# traverse_backward() {
+#   local current=${ll_prev[$head]}
+#   if [[ -z $current ]]; then
+#     # List is empty
+#     return 0;
+#   fi
+
+#   while true; do
+#     echo "$current -> node_type=${node_type[$current]}, node_value=${node_value[$current]}"
+#     current=${ll_prev[$current]}
+#     [[ $current == ${ll_prev[$head]} ]] && break
+#   done
+# }
+
+# save_linkedlist() {
+#   echo "start"
+
+#   local file="$1"
+#   echo "" > "$file"  # clear file
+
+#   echo "hey"
+
+#   local current=$head
+#   [[ -z $current ]] && return
+
+#   echo "hey"
+
+#   while true; do
+#     echo "$current|${node_type[$current]}|${node_value[$current]}|${ll_next[$current]}|${ll_prev[$current]}" >> "$file"
+#     echo "yo"
+#     current=${ll_next[$current]}
+#     [[ $current == $head ]] && break
+#   done
+# }
+
+# restore_linkedlist() {
+#   local file="$1"
+#   [[ ! -f $file ]] && return
+
+#   # Reset all structures
+#   # unset ll_next ll_prev node_type node_value head
+#   # typeset -A ll_next ll_prev node_type node_value
+#   # typeset -g head=""
+#   typeset -g node_counter=0
+
+#   # Track highest node number for restoring counter
+#   local highest_id=0
+
+#   while IFS='|' read -r node_id node_type node_value node_next node_prev; do
+#     # Validate node_id format (e.g., node1, node2)
+#     if [[ $node_id =~ node([0-9]+) ]]; then
+#       local id_num=${match[1]}
+#       (( id_num > highest_id )) && highest_id=$id_num
+#     fi
+
+#     node_type[$node_id]=$node_type
+#     node_value[$node_id]=$node_value
+#     ll_next[$node_id]=$node_next
+#     ll_prev[$node_id]=$node_prev
+
+#     # First line -> set head
+#     [[ -z $head ]] && head=$node_id
+#   done < "$file"
+
+#   node_counter=$highest_id
+
+#   # Validate circularity
+#   if [[ -n $head && $head == ${ll_next[${ll_prev[$head]}]} && $head == ${ll_prev[${ll_next[$head]}]} ]]; then
+#     return 0
+#   else
+#     clear_linkedlist
+#     return 1
+#     #echo " warning: list restored but may not be circular or fully valid."
+#   fi
+# }
+
+save_projects() {
+  local file="$1"
+  echo "" > "$file"
+
+  if [[ ! -f $file ]]; then
+    return 1
+  fi
+
+  for project in $project_names; do
+    echo "PROJECT|$project|${project_folders[$project]}" >> "$file"
+    local current=${project_heads[$project]}
+    [[ -z $current ]] && continue
+
+    while true; do
+      echo "NODE|$current|${node_type[$current]}|${node_value[$current]}|${ll_next[$current]}|${ll_prev[$current]}" >> "$file"
+      current=${ll_next[$current]}
+      [[ $current == ${project_heads[$project]} ]] && break
+    done
+  done
+}
+
+restore_projects() {
+  local file="$1"
+  [[ ! -f $file ]] && return
+
+  # Clear all existing data
+  # unset project_names project_folders project_heads
+  # unset ll_next ll_prev node_type node_value head node_counter
+  # typeset -a project_names
+  # typeset -A project_folders project_heads ll_next ll_prev node_type node_value
+  # typeset -gi node_counter=0
+
+  local current_project=""
+  local highest_id=0
+
+  while IFS='|' read -r kind arg1 arg2 arg3 arg4 arg5 arg6; do
+    if [[ $kind == "PROJECT" ]]; then
+      local name=$arg1
+      local folder=$arg2
+      project_names+=$name
+      project_folders[$name]=$folder
+    elif [[ $kind == "NODE" ]]; then
+      local node_id=$arg1
+      local _type=$arg2
+      local _value=$arg3
+      local _next=$arg4
+      local _prev=$arg5
+
+      node_type[$node_id]=$_type
+      node_value[$node_id]=$_value
+      ll_next[$node_id]=$_next
+      ll_prev[$node_id]=$_prev
+
+      [[ $node_id =~ node([0-9]+) ]] && (( match[1] > highest_id )) && node_counter=${match[1]}
+
+      # Extract project name prefix from node ID
+      local project_prefix=${node_id%%_node*}
+      [[ -z ${project_heads[$project_prefix]} ]] && project_heads[$project_prefix]=$node_id
+    fi
+  done < "$file"
+}
+
+PUMP_DB_FILE="$(dirname "$0")/.db"
+if [[ -f "$PUMP_DB_FILE" ]]; then
+  restore_projects "$PUMP_DB_FILE"
+
+  #traverse_projects
+
+  # traverse_projects_backwards
+  # traverse_project "music"
+  # traverse_project "video"
+  # traverse_project "photos"
+else
+  # Example usage
+  create_project "music" "/projects/music"
+  create_project "video" "/projects/video"
+  create_project "photos" "/projects/photos"
+
+  add_project_node "music" "artist" "Adele"
+  add_project_node "music" "album" "25"
+  add_project_node "music" "track" "Hello"
+
+  add_project_node "video" "director" "Nolan"
+  add_project_node "video" "film" "Inception"
+
+  add_project_node "photos" "camera" "Nikon"
+  add_project_node "photos" "location" "Iceland"
+
+  save_projects "$PUMP_DB_FILE"
+fi
+
+# # Clear everything
+# unset ll_next ll_prev node_type node_value head
+# typeset -A ll_next ll_prev node_type node_value
+# head=""
+
+# # Restore
+# restore_linkedlist "linkedlist.db"
 
 # ==========================================================================
 # &>/dev/null	                Hide both stdout and stderr outputs
 # 2>/dev/null                 show stdout, hide stderr  
 # 1>/dev/null or >/dev/null	  Hide stdout, show stderr
+
+# ========================================================================
+# Project configuration
+PUMP_CONFIG_FILE="$(dirname "$0")/config/pump.zshenv"
+
+if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
+  echo "${red_cor} fatal: config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${clear_cor}"
+  return 1
+fi
+
+# ========================================================================
+# PUMP_WORKING_FILE_3="$(dirname "$0")/.working_3"
+# [[ -f "$PUMP_WORKING_FILE_3" ]] && PUMP_WORKING_3=$(<"$PUMP_WORKING_FILE_3")
+# project 1 ==============================================================
+# Declare associative arrays to hold project data
+typeset -gA Z_PROJECT_SHORT_NAME
+typeset -gA Z_PROJECT_FOLDER
+typeset -gA Z_PROJECT_REPO
+typeset -gA Z_PACKAGE_MANAGER
+typeset -gA Z_CODE_EDITOR
+typeset -gA Z_CLONE
+typeset -gA Z_SETUP
+typeset -gA Z_RUN
+typeset -gA Z_RUN_STAGE
+typeset -gA Z_RUN_PROD
+typeset -gA Z_PRO
+typeset -gA Z_TEST
+typeset -gA Z_COV
+typeset -gA Z_TEST_WATCH
+typeset -gA Z_E2E
+typeset -gA Z_E2EUI
+typeset -gA Z_PR_TEMPLATE
+typeset -gA Z_PR_REPLACE
+typeset -gA Z_PR_APPEND
+typeset -gA Z_PR_RUN_TEST
+typeset -gA Z_GHA_INTERVAL
+typeset -gA Z_COMMIT_ADD
+typeset -gA Z_DEFAULT_BRANCH
+typeset -gA Z_GHA_WORKFLOW
+typeset -gA Z_PUSH_ON_REFIX
+typeset -gA Z_PRINT_README
+typeset -gA PUMP_WORKING
+typeset -gA PUMP_WORKING_FILE
+typeset -gA PUMP_WORKING_TYPE # "folder" | "branch"
+
+Z_CURRENT_PROJECT_FOLDER=""
+Z_CURRENT_PROJECT_SHORT_NAME=""
+Z_CURRENT_PROJECT_REPO=""
+Z_CURRENT_PACKAGE_MANAGER=""
+Z_CURRENT_CODE_EDITOR=""
+Z_CURRENT_CLONE=""
+Z_CURRENT_SETUP=""
+Z_CURRENT_RUN=""
+Z_CURRENT_RUN_STAGE=""
+Z_CURRENT_RUN_PROD=""
+Z_CURRENT_PRO=""
+Z_CURRENT_TEST=""
+Z_CURRENT_COV=""
+Z_CURRENT_TEST_WATCH=""
+Z_CURRENT_E2E=""
+Z_CURRENT_E2EUI=""
+Z_CURRENT_PR_TEMPLATE=""
+Z_CURRENT_PR_REPLACE=""
+Z_CURRENT_PR_APPEND=""
+Z_CURRENT_PR_RUN_TEST=""
+Z_CURRENT_GHA_INTERVAL=""
+Z_CURRENT_COMMIT_ADD=""
+Z_CURRENT_GHA_WORKFLOW=""
+Z_CURRENT_PUSH_ON_REFIX=""
+Z_CURRENT_DEFAULT_BRANCH=""
+Z_CURRENT_PRINT_README=""
+
+PUMP_PAST_=""
+PUMP_PAST_BRANCH_OR_FOLDER_=""
+
+bright_green_cor="\e[1m\e[38;5;151m"
+dark_gray_cor="\e[38;5;236m"
+
+solid_blue_cor="\e[34m"
+solid_cyan_cor="\e[36m"
+solid_green_cor="\e[32m"
+solid_yellow_cor="\e[33m"
+solid_magenta_cor="\e[35m"
+solid_red_cor="\e[31m"
+
+gray_cor="\e[38;5;252m"
+clear_cor="\e[0m"
+blue_cor="\e[94m"
+cyan_cor="\e[96m"
+green_cor="\e[92m"
+yellow_cor="\e[93m"
+magenta_cor="\e[95m"
+red_cor="\e[91m"
+pink_cor="\e[0;95m"
+purple_cor="\e[38;5;99m"
+
+load_config_() {
+  # Iterate over the first 10 project configurations
+  for i in {1..10}; do
+    short_name=$(sed -n "s/^Z_PROJECT_SHORT_NAME_${i}=\\([^ ]*\\)/\\1/p" "$PUMP_CONFIG_FILE")
+    [[ -z "$short_name" ]] && continue  # Skip if not defined
+
+    Z_PROJECT_SHORT_NAME[$i]=$short_name
+    # echo "$i - key: Z_PROJECT_SHORT_NAME, value: $short_name"
+
+    # Set project folder path
+    _folder=$(sed -n "s/^Z_PROJECT_FOLDER_${i}=\\([^ ]*\\)/\\1/p" "$PUMP_CONFIG_FILE")
+    if [[ -n "$_folder" ]]; then
+      edited_folder="${_folder/#\~/$HOME}"
+      [[ -n "$edited_folder" ]] && _folder="$edited_folder"
+    fi
+    
+    [[ -n "$_folder" ]] && _folder="${_folder%/}"
+    [[ -n "$_folder" ]] && realfolder=$(realpath "$_folder" 2>/dev/null)
+    [[ -z "$realfolder" ]] && mkdir -p "$_folder" &>/dev/null && realfolder=$(realpath "$_folder" 2>/dev/null)
+
+    Z_PROJECT_FOLDER[$i]=$realfolder
+    # echo "$i - key: Z_PROJECT_FOLDER, value: $realfolder"
+
+    keys=(
+      Z_PROJECT_REPO
+      Z_PACKAGE_MANAGER
+      Z_CODE_EDITOR
+      Z_CLONE
+      Z_SETUP
+      Z_RUN
+      Z_RUN_STAGE
+      Z_RUN_PROD
+      Z_PRO
+      Z_TEST
+      Z_COV
+      Z_TEST_WATCH
+      Z_E2E
+      Z_E2EUI
+      Z_PR_TEMPLATE
+      Z_PR_REPLACE
+      Z_PR_APPEND
+      Z_PR_RUN_TEST
+      Z_GHA_INTERVAL
+      Z_COMMIT_ADD
+      Z_GHA_WORKFLOW
+      Z_PUSH_ON_REFIX
+      Z_DEFAULT_BRANCH
+      Z_PRINT_README
+    )
+
+    for key in "${keys[@]}"; do
+      value=$(sed -n "s/^${key}_${i}=\\([^ ]*\\)/\\1/p" "$PUMP_CONFIG_FILE")
+
+      # If the value is not set, provide default values for specific keys
+      if [[ -z "$value" ]]; then
+        case "$key" in
+          Z_PACKAGE_MANAGER)
+            value="npm"
+            ;;
+          Z_CODE_EDITOR)
+            value="code"
+            ;;
+          Z_RUN)
+            value="${Z_PACKAGE_MANAGER[$i]} run dev"
+            ;;
+          Z_RUN_STAGE)
+            value="${Z_PACKAGE_MANAGER[$i]} run stage"
+            ;;
+          Z_RUN_PROD)
+            value="${Z_PACKAGE_MANAGER[$i]} run prod"
+            ;;
+          Z_TEST)
+            value="${Z_PACKAGE_MANAGER[$i]} run test"
+            ;;
+          Z_COV)
+            value="${Z_PACKAGE_MANAGER[$i]} run test:coverage"
+            ;;
+          Z_TEST_WATCH)
+            value="${Z_PACKAGE_MANAGER[$i]} run test:watch"
+            ;;
+          Z_E2E)
+            value="${Z_PACKAGE_MANAGER[$i]} run test:e2e"
+            ;;
+          Z_E2EUI)
+            value="${Z_PACKAGE_MANAGER[$i]} run test:e2e-ui"
+            ;;
+          Z_PR_APPEND)
+            value="0"
+            ;;
+          Z_GHA_INTERVAL)
+            value="10"
+            ;;
+          Z_PRINT_README)
+            value="0"
+            ;;
+          *)
+            continue
+            ;;
+        esac
+      fi
+
+      # store the value
+      case "$key" in
+        Z_PROJECT_REPO)
+          Z_PROJECT_REPO[$i]="$value"
+          ;;
+        Z_PACKAGE_MANAGER)
+          Z_PACKAGE_MANAGER[$i]="$value"
+          ;;
+        Z_CODE_EDITOR)
+          Z_CODE_EDITOR[$i]="$value"
+          ;;
+        Z_CLONE)
+          Z_CLONE[$i]="$value"
+          ;;
+        Z_SETUP)
+          Z_SETUP[$i]="$value"
+          ;;
+        Z_RUN)
+          Z_RUN[$i]="$value"
+          ;;
+        Z_RUN_STAGE)
+          Z_RUN_STAGE[$i]="$value"
+          ;;
+        Z_RUN_PROD)
+          Z_RUN_PROD[$i]="$value"
+          ;;
+        Z_PRO)
+          Z_PRO[$i]="$value"
+          ;;
+        Z_TEST)
+          Z_TEST[$i]="$value"
+          ;;
+        Z_COV)
+          Z_COV[$i]="$value"
+          ;;
+        Z_TEST_WATCH)
+          Z_TEST_WATCH[$i]="$value"
+          ;;
+        Z_E2E)
+          Z_E2E[$i]="$value"
+          ;;
+        Z_E2EUI)
+          Z_E2EUI[$i]="$value"
+          ;;
+        Z_PR_TEMPLATE)
+          Z_PR_TEMPLATE[$i]="$value"
+          ;;
+        Z_PR_REPLACE)
+          Z_PR_REPLACE[$i]="$value"
+          ;;
+        Z_PR_APPEND)
+          Z_PR_APPEND[$i]="$value"
+          ;;
+        Z_PR_RUN_TEST)
+          Z_PR_RUN_TEST[$i]="$value"
+          ;;
+        Z_GHA_INTERVAL)
+          Z_GHA_INTERVAL[$i]="$value"
+          ;;
+        Z_COMMIT_ADD)
+          Z_COMMIT_ADD[$i]="$value"
+          ;;
+        Z_DEFAULT_BRANCH)
+          Z_DEFAULT_BRANCH[$i]="$value"
+          ;;
+        Z_GHA_WORKFLOW)
+          Z_GHA_WORKFLOW[$i]="$value"
+          ;;
+        Z_PUSH_ON_REFIX)
+          Z_PUSH_ON_REFIX[$i]="$value"
+          ;;
+        Z_PRINT_README)
+          Z_PRINT_README[$i]="$value"
+          ;;
+      esac
+      # echo "$i - key: $key, value: $value"
+    done
+  done
+}
+
+load_config_
+
+# clear project names if they are invalid
+for i in {1..10}; do
+  if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+    check_proj_name_valid_ "${Z_PROJECT_SHORT_NAME[$i]}" -q
+    if [[ $? -ne 0 ]]; then
+      clear_project_ $i
+    fi
+  fi
+done
+
+PUMP_PRO_FILE="$(dirname "$0")/.pump"
+
+# auto pro ===============================================================
+pro pwd -q
+# get stored project and set project but do not change current directory
+if [ $? -ne 0 ]; then
+  # Read the current project short name from the PUMP_PRO_FILE if it exists
+  [[ -f "$PUMP_PRO_FILE" ]] && pump_pro_file_value=$(<"$PUMP_PRO_FILE")
+
+  if [[ -n "$pump_pro_file_value" ]]; then
+    check_proj_name_valid_ "$pump_pro_file_value" -q
+    if [ $? -ne 0 ]; then
+      rm -f "$PUMP_PRO_FILE" &>/dev/null
+      pump_pro_file_value=""
+    fi
+  fi
+
+  # Create an array of project names to loop through
+  project_names=("$pump_pro_file_value")
+  
+  # Loop through 1 to 10 to add additional project names to the array
+  for i in {1..10}; do
+    if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      if [[ ! " ${project_names[@]} " =~ " ${Z_PROJECT_SHORT_NAME[$i]} " ]]; then
+        project_names+=("${Z_PROJECT_SHORT_NAME[$i]}")
+      fi
+    fi
+  done
+  
+  # Remove any empty values in the array (e.g., if $pump_pro_file_value is empty)
+  project_names=("${project_names[@]/#/}")
+  #echo "${project_names[@]}"
+
+  # Loop over the projects to check and execute them
+  for project in "${project_names[@]}"; do
+    if [[ -n "$project" ]]; then
+      pro "$project" -q
+      if [[ $? -eq 0 ]]; then
+        break  # Exit loop once a valid project is found and executed successfully
+      fi
+    fi
+  done
+fi
+
+if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+  echo " your project is set to:${solid_blue_cor} $Z_CURRENT_PROJECT_SHORT_NAME${clear_cor} with${solid_magenta_cor} $Z_CURRENT_PACKAGE_MANAGER ${clear_cor}"
+  echo ""
+else
+  return 0;
+fi
+
+if [[ -n "$Z_CURRENT_PRO" ]]; then
+  eval "$Z_CURRENT_PRO"
+fi
+# ==========================================================================
+
+alias i="$Z_CURRENT_PACKAGE_MANAGER install"
+# Package manager aliases =========================================================
+alias build="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")build"
+alias deploy="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")deploy"
+alias fix="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format && $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
+alias format="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format"
+alias ig="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")install --global"
+alias lint="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
+alias rdev="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")dev"
+alias tsc="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")tsc"
+alias sb="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook"
+alias sbb="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook:build"
+alias start="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")start"
+
+unalias ncov &>/dev/null
+unalias ntest &>/dev/null
+unalias ne2e &>/dev/null
+unalias ne2eui &>/dev/null
+unalias ntestw &>/dev/null
+
+unalias ycov &>/dev/null
+unalias ytest &>/dev/null
+unalias ye2e &>/dev/null
+unalias ye2eui &>/dev/null
+unalias ytestw &>/dev/null
+
+unalias pcov &>/dev/null
+unalias ptest &>/dev/null
+unalias pe2e &>/dev/null
+unalias pe2eui &>/dev/null
+unalias ptestw &>/dev/null
+
+unalias bcov &>/dev/null
+unalias btest &>/dev/null
+unalias be2e &>/dev/null
+unalias be2eui &>/dev/null
+unalias btestw &>/dev/null 
+
+if [[ "$Z_CURRENT_COV" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage" ]]; then
+  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}cov="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage"
+fi
+if [[ "$Z_CURRENT_TEST" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test" ]]; then
+  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}test="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test"
+fi
+if [[ "$Z_CURRENT_E2E" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e" ]]; then
+  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}e2e="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e"
+fi
+if [[ "$Z_CURRENT_E2EUI" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui" ]]; then
+  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}e2eui="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui"
+fi
+if [[ "$Z_CURRENT_TEST_WATCH" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch" ]]; then
+  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}testw="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch"
+fi
+
+# project functions =========================================================
+z_project_handler() {
+  local i="$1"
+  local short_name="${Z_PROJECT_SHORT_NAME[$i]}"
+  local folder="${Z_PROJECT_FOLDER[$i]}"
+  local working="${PUMP_WORKING[$i]}"
+
+  if [[ -z "$folder" ]]; then
+    save_project_ $i
+    return 1
+  fi
+
+  local is_single_mode=$(is_project_single_mode_ "$Z_CURRENT_PROJECT_FOLDER")
+
+  if [[ "$2" == "-h" ]]; then
+    echo "${yellow_cor} $short_name${clear_cor} : to cd into $short_name"
+    if [[ $is_single_mode -eq 0 ]]; then
+      echo "${yellow_cor} $short_name${solid_yellow_cor} [<branch>]${clear_cor} : to cd into $short_name and switch to branch"
+    else
+      echo "${yellow_cor} $short_name -l${clear_cor} : to list all $short_name's working folders"
+      echo "${yellow_cor} $short_name${solid_yellow_cor} [<folder>]${clear_cor} : to cd into $short_name into a folder"
+      echo "${yellow_cor} $short_name${solid_yellow_cor} [<folder>] [<branch>]${clear_cor} : to cd into $short_name into a folder and switch to branch"
+    fi
+    return 0
+  fi
+
+  if [[ "$2" == "-l" ]]; then
+    if [[ $is_single_mode -eq 0 ]]; then
+      echo " project is in 'single mode'"
+      echo " ${yellow_cor} $short_name -h${clear_cor} to see usage"
+      return 0
+    fi
+
+    folders=($(get_folders_ "$folder"))
+    if [[ -n "${folders[*]}" ]]; then
+      for folder in "${folders[@]}"; do
+        echo "${pink_cor} $folder ${clear_cor}"
+      done
+    else
+      echo " no folders yet"
+    fi
+    return 0
+  fi
+
+  if [[ -z "$2" && $is_single_mode -eq 1 ]]; then
+    folders=($(get_folders_ "$folder"))
+    if [[ -n "${folders[*]}" ]]; then
+      selected_folder=($(choose_auto_one_ "choose work folder:" "${folders[@]}"))
+      if [[ -z "$selected_folder" ]]; then
+        return 1
+      fi
+      "$short_name" "$selected_folder"
+      return 0
+    fi
+  fi
+
+  local arg2=""
+  if [[ "$short_name" == "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+    arg2="-q"
+  fi
+
+  pro "$short_name" $arg2
+  cd "$folder" || return 1
+
+  local folder_path=""
+  local branch=""
+  local is_working_branch=0
+
+  if [[ $is_single_mode -eq 0 ]]; then
+    branch="$2"
+    if [[ -z "$branch" ]]; then
+      is_working_branch=1
+      branch=$(git branch | grep -w "$working" | cut -c 3- | head -n 1)
+    fi
+  else
+    if [[ -z "$2" ]]; then
+      is_working_branch=1
+      folder_path="$working"
+      if [[ -z "$folder_path" || ! -d "$folder_path" ]]; then
+        folder_path=$(get_default_branch_folder_ "$folder")
+      fi
+    else
+      folder_path="$2"
+    fi
+    branch="$3"
+  fi
+
+  if [[ -n "$folder_path" ]]; then
+    if [[ $is_working_branch -eq 1 ]]; then check_any_pkg_silent_ "$folder_path"; else check_any_pkg_ "$folder_path"; fi
+    if [[ $? -eq 0 ]]; then
+      _path=$(realpath "$folder_path" 2>/dev/null)
+      if [[ -n "$_path" ]]; then
+        PUMP_FUTURE_="$_path"
+        PUMP_FUTURE_BRANCH_OR_FOLDER_="folder"
+      fi
+      pushd "$folder_path" &>/dev/null
+    fi
+  fi
+
+  if [[ -n "$branch" ]]; then
+    if [[ $is_working_branch -eq 1 ]]; then
+      co -e "$branch" -q
+    else
+      co -e "$branch"
+    fi
+    st
+  fi
+}
+
+for i in {1..10}; do
+  short_name="${Z_PROJECT_SHORT_NAME[$i]}"
+  if [[ -n "$short_name" ]]; then
+    eval "
+      $short_name() {
+        z_project_handler $i \"\$@\"
+      }
+    "
+  fi
+done
