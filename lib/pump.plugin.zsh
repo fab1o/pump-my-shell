@@ -1136,9 +1136,13 @@ function save_prj_name_() {
   if [[ -n "$typed_name" ]]; then
     check_prj_name_ $i "$typed_name"
     if (( $? == 0 )); then
-      update_config_ "Z_PROJECT_SHORT_NAME_$i" "$typed_name"
-      if (( $? == 0 )); then
-        Z_PROJECT_SHORT_NAME[$i]="$typed_name"
+      if (( i > 0 )); then
+        update_config_ "Z_PROJECT_SHORT_NAME_$i" "$typed_name"
+        if (( $? == 0 )); then
+          Z_PROJECT_SHORT_NAME[$i]="$typed_name"
+        fi
+      else
+        Z_CURRENT_PROJECT_SHORT_NAME="$typed_name"
       fi
       print "  $typed_name" >&2
       return 0; # ok if it didn't save to config
@@ -1165,9 +1169,13 @@ function save_prj_folder_() {
     (( is_d )) && print " realfolder: $realfolder" >&2
 
     if [[ -n "$realfolder" ]]; then
-      update_config_ "Z_PROJECT_FOLDER_$i" "$realfolder"
-      if (( $? == 0 )); then
-        Z_PROJECT_FOLDER[$i]="$realfolder"
+      if (( i > 0 )); then
+        update_config_ "Z_PROJECT_FOLDER_$i" "$realfolder"
+        if (( $? == 0 )); then
+          Z_PROJECT_FOLDER[$i]="$realfolder"
+        fi
+      else
+        Z_CURRENT_PROJECT_FOLDER="$realfolder"
       fi
       print "  $typed_folder" >&2
       return 0; # ok if it didn't save to config
@@ -1190,9 +1198,13 @@ function save_prj_repo_() {
   if [[ -n "$typed_repo" ]]; then
     get_prj_repo_ $i "$typed_repo"
     if (( $? == 0 )); then
-      update_config_ "Z_PROJECT_REPO_$i" "$typed_repo"
-      if (( $? == 0 )); then
-        Z_PROJECT_REPO[$i]="$typed_repo"
+      if (( i > 0 )); then
+        update_config_ "Z_PROJECT_REPO_$i" "$typed_repo"
+        if (( $? == 0 )); then
+          Z_PROJECT_REPO[$i]="$typed_repo"
+        fi
+      else
+        Z_CURRENT_PROJECT_REPO="$typed_repo"
       fi
       print "  $typed_repo" >&2
       return 0; # ok if it didn't save to config
@@ -1210,9 +1222,13 @@ function save_prj_pkg_manager_() {
   if [[ -n "$choose_pkg" ]]; then
     check_prj_pkg_manager_ $i "$choose_pkg"
     if (( $? == 0 )); then
-      update_config_ "Z_PACKAGE_MANAGER_$i" "$choose_pkg"
-      if (( $? == 0 )); then
-        Z_PACKAGE_MANAGER[$i]="$choose_pkg"
+      if (( i > 0 )); then
+        update_config_ "Z_PACKAGE_MANAGER_$i" "$choose_pkg"
+        if (( $? == 0 )); then
+          Z_PACKAGE_MANAGER[$i]="$choose_pkg"
+        fi
+      else
+        Z_CURRENT_PACKAGE_MANAGER="$choose_pkg"
       fi
       print "  $choose_pkg" >&2
       return 0;
@@ -1274,7 +1290,83 @@ function save_prj_() {
 
 # end of save project data to config file =========================================
 
-function clear_prj_() {
+set_aliases_() {
+  unalias ncov &>/dev/null
+  unalias ntest &>/dev/null
+  unalias ne2e &>/dev/null
+  unalias ne2eui &>/dev/null
+  unalias ntestw &>/dev/null
+
+  unalias ycov &>/dev/null
+  unalias ytest &>/dev/null
+  unalias ye2e &>/dev/null
+  unalias ye2eui &>/dev/null
+  unalias ytestw &>/dev/null
+
+  unalias pcov &>/dev/null
+  unalias ptest &>/dev/null
+  unalias pe2e &>/dev/null
+  unalias pe2eui &>/dev/null
+  unalias ptestw &>/dev/null
+
+  unalias bcov &>/dev/null
+  unalias btest &>/dev/null
+  unalias be2e &>/dev/null
+  unalias be2eui &>/dev/null
+  unalias btestw &>/dev/null 
+
+  unset i &>/dev/null
+  unset build &>/dev/null
+  unset deploy &>/dev/null
+  unset fix &>/dev/null
+  unset format &>/dev/null
+  unset ig &>/dev/null
+  unset lint &>/dev/null
+  unset rdev &>/dev/null
+  unset tsc &>/dev/null
+  unset sb &>/dev/null
+  unset sbb &>/dev/null
+  unset start &>/dev/null
+
+  check_prj_pkg_manager_ -s 0 "$Z_CURRENT_PACKAGE_MANAGER"
+  if [[ -z "$Z_CURRENT_PACKAGE_MANAGER" ]]; then
+    return 1;
+  fi
+
+  # Reset all aliases
+  #unalias -a &>/dev/null
+  alias i="$Z_CURRENT_PACKAGE_MANAGER install"
+  # Package manager aliases =========================================================
+  alias build="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")build"
+  alias deploy="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")deploy"
+  alias fix="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format && $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
+  alias format="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format"
+  alias ig="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")install --global"
+  alias lint="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
+  alias rdev="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")dev"
+  alias tsc="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")tsc"
+  alias sb="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook"
+  alias sbb="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook:build"
+  alias start="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")start"
+
+  if [[ "$Z_CURRENT_COV" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage" ]]; then
+    alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}cov="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage"
+  fi
+  if [[ "$Z_CURRENT_TEST" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test" ]]; then
+    alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}test="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test"
+  fi
+  if [[ "$Z_CURRENT_E2E" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e" ]]; then
+    alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}e2e="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e"
+  fi
+  if [[ "$Z_CURRENT_E2EUI" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui" ]]; then
+    alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}e2eui="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui"
+  fi
+  if [[ "$Z_CURRENT_TEST_WATCH" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch" ]]; then
+    alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}testw="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch"
+  fi
+}
+
+function remove_prj_() {
   i="$1"
 
   Z_PROJECT_SHORT_NAME[$i]=""
@@ -1303,6 +1395,33 @@ function clear_prj_() {
   Z_CURRENT_PUSH_ON_REFIX=""
   Z_DEFAULT_BRANCH[$i]=""
   Z_PRINT_README[$i]=""
+
+  update_config_ "Z_PROJECT_SHORT_NAME_$i" ""
+  update_config_ "Z_PROJECT_FOLDER_$i" "" >/dev/null
+  update_config_ "Z_PROJECT_REPO_$i" "" >/dev/null
+  update_config_ "Z_PACKAGE_MANAGER_$i" "" >/dev/null
+  update_config_ "Z_CODE_EDITOR_$i" "" >/dev/null
+  update_config_ "Z_CLONE_$i" "" >/dev/null
+  update_config_ "Z_SETUP_$i" "" >/dev/null
+  update_config_ "Z_RUN_$i" "" >/dev/null
+  update_config_ "Z_RUN_STAGE_$i" "" >/dev/null
+  update_config_ "Z_RUN_PROD_$i" "" >/dev/null
+  update_config_ "Z_PRO_$i" "" >/dev/null
+  update_config_ "Z_TEST_$i" "" >/dev/null
+  update_config_ "Z_COV_$i" "" >/dev/null
+  update_config_ "Z_TEST_WATCH_$i" "" >/dev/null
+  update_config_ "Z_E2E_$i" "" >/dev/null
+  update_config_ "Z_E2EUI_$i" "" >/dev/null
+  update_config_ "Z_PR_TEMPLATE_$i" "" >/dev/null
+  update_config_ "Z_PR_REPLACE_$i" "" >/dev/null
+  update_config_ "Z_PR_APPEND_$i" "" >/dev/null
+  update_config_ "Z_PR_RUN_TEST_$i" "" >/dev/null
+  update_config_ "Z_GHA_INTERVAL_$i" "" >/dev/null
+  update_config_ "Z_COMMIT_ADD_$i" "" >/dev/null
+  update_config_ "Z_GHA_WORKFLOW_$i" "" >/dev/null
+  update_config_ "Z_CURRENT_PUSH_ON_REFIX_$i" "" >/dev/null
+  update_config_ "Z_DEFAULT_BRANCH_$i" "" >/dev/null
+  update_config_ "Z_PRINT_README_$i" "" >/dev/null
 }
 
 function clear_curr_prj_() {
@@ -1402,14 +1521,13 @@ function pro() {
   local is_h=0 is_a=0 is_e=0 is_r=0 is_u=0 is_p=0 is_f=0 is_d=0 
   eval "$(parse_flags_ "$@")"
 
-  (( is_d )) && print " debug: pro is_a=$is_a is_e=$is_e is_r=$is_r is_u=$is_u is_p=$is_p is_f=$is_f is_d=$is_d, is_h=$is_h" >&1
-
-  if (( is_h || ! ${#1} )); then
+  if (( is_h )); then
     print "${yellow_cor} pro <pro>${clear_cor} : to set a project"
     print " ${yellow_cor} -a <pro>${clear_cor} : to add a new project"
     print " ${yellow_cor} -e <pro>${clear_cor} : to edit a project"
     print " ${yellow_cor} -r <pro>${clear_cor} : to remove a project"
     print " ${yellow_cor} -u <pro>${clear_cor} : to unset project"
+    print " ${yellow_cor} -p <pro>${clear_cor} : to print project info"
     if [[ -n "${Z_PROJECT_SHORT_NAME[*]}" ]]; then
       print ""
       print -n " projects: ${blue_cor} "
@@ -1425,17 +1543,27 @@ function pro() {
 
   local proj_arg="$1"
 
-  # Handle 'pwd' as a special case
   if (( is_p )); then
-    _pro=$(which_pro_pwd_)
-    (( is_d )) && print " debug: found which_pro_pwd_: $_pro" >&1
-    if [[ -n "$_pro" ]]; then
-      pro -f "$_pro"
-      return $?
+    # print project
+    if [[ -z "$proj_arg" ]]; then
+      print " please provide a project name to print" >&2
+      print " ${yellow_cor} pro -h${clear_cor} to see usage" >&2
+      return 1;
     fi
+
+    for i in {1..9}; do
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        print_current_proj $i
+        return 0;
+      fi
+    done
+
+    print " project not found: $proj_arg" >&2
+    print " ${yellow_cor} pro -h${clear_cor} to see usage" >&2
     return 1;
   fi
 
+  # CRUD operations
   if (( is_e )); then
     # edit project
     if [[ -z "$proj_arg" ]]; then
@@ -1456,7 +1584,7 @@ function pro() {
   fi
   
   if (( is_a )); then
-    # add a new project
+    # add project
     for i in {1..9}; do
       if [[ -z "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         save_prj_ $i $proj_arg
@@ -1472,7 +1600,7 @@ function pro() {
   fi
 
   if (( is_r )); then
-    # remove a project
+    # remove project
     if [[ -z "$proj_arg" ]]; then
       print " please provide a project name to delete" >&2
       print " ${yellow_cor} pro -h${clear_cor} to see usage" >&2
@@ -1480,48 +1608,16 @@ function pro() {
     fi
 
     for i in {1..9}; do
-      if [[ "$proj_arg" != "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-        continue
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        remove_prj_ $i
+        if (( $? == 0 )); then
+          print " project deleted: $proj_arg"
+        fi
+        if [[ "$proj_arg" == "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+          clear_curr_prj_
+        fi
+        return 0;
       fi
-
-      if [[ "$proj_arg" == "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
-        clear_curr_prj_
-      fi
-
-      clear_prj_ $i
-
-      update_config_ "Z_PROJECT_SHORT_NAME_$i" ""
-      update_config_ "Z_PROJECT_FOLDER_$i" "" >/dev/null
-      update_config_ "Z_PROJECT_REPO_$i" "" >/dev/null
-      update_config_ "Z_PACKAGE_MANAGER_$i" "" >/dev/null
-      update_config_ "Z_CODE_EDITOR_$i" "" >/dev/null
-      update_config_ "Z_CLONE_$i" "" >/dev/null
-      update_config_ "Z_SETUP_$i" "" >/dev/null
-      update_config_ "Z_RUN_$i" "" >/dev/null
-      update_config_ "Z_RUN_STAGE_$i" "" >/dev/null
-      update_config_ "Z_RUN_PROD_$i" "" >/dev/null
-      update_config_ "Z_PRO_$i" "" >/dev/null
-      update_config_ "Z_TEST_$i" "" >/dev/null
-      update_config_ "Z_COV_$i" "" >/dev/null
-      update_config_ "Z_TEST_WATCH_$i" "" >/dev/null
-      update_config_ "Z_E2E_$i" "" >/dev/null
-      update_config_ "Z_E2EUI_$i" "" >/dev/null
-      update_config_ "Z_PR_TEMPLATE_$i" "" >/dev/null
-      update_config_ "Z_PR_REPLACE_$i" "" >/dev/null
-      update_config_ "Z_PR_APPEND_$i" "" >/dev/null
-      update_config_ "Z_PR_RUN_TEST_$i" "" >/dev/null
-      update_config_ "Z_GHA_INTERVAL_$i" "" >/dev/null
-      update_config_ "Z_COMMIT_ADD_$i" "" >/dev/null
-      update_config_ "Z_GHA_WORKFLOW_$i" "" >/dev/null
-      update_config_ "Z_CURRENT_PUSH_ON_REFIX_$i" "" >/dev/null
-      update_config_ "Z_DEFAULT_BRANCH_$i" "" >/dev/null
-      update_config_ "Z_PRINT_README_$i" "" >/dev/null
-
-      if (( $? == 0 )); then
-        print " project deleted: $proj_arg"
-      fi
-
-      return 0;
     done
 
     print " project not found: $proj_arg" >&2
@@ -1529,10 +1625,38 @@ function pro() {
     return 1;
   fi # end of delete
 
-  if [[ -z "$proj_arg" ]]; then
-    print " please provide a project name to set" >&2
+  if (( is_u )); then
+    # unset project
+    if [[ -z "$proj_arg" ]]; then
+      print " please provide a project name to unset" >&2
+      print " ${yellow_cor} pro -h${clear_cor} to see usage" >&2
+      return 1;
+    fi
+
+    for i in {1..9}; do
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        # unset aliases
+        clear_curr_prj_
+        return 0;
+      fi
+    done
+
+    print " project not found: $proj_arg" >&2
     print " ${yellow_cor} pro -h${clear_cor} to see usage" >&2
     return 1;
+  fi
+
+  if [[ -z "$proj_arg" ]]; then
+    pro -h
+    return 0;
+  fi
+
+  if [[ "$proj_arg" == "pwd" ]]; then
+    proj_arg=$(which_pro_pwd_); (( is_d )) && print " debug: which_pro_pwd_: $proj_arg" >&1
+    
+    if [[ -z "$proj_arg" ]]; then
+      return 1;
+    fi
   fi
 
   (( is_d )) && print " debug: pro proj_arg: $proj_arg" >&1
@@ -1608,10 +1732,7 @@ function pro() {
       eval "$Z_CURRENT_PRO"
     fi
 
-    if (( ! is_f )); then
-      (( is_d )) && print "refreshing...." >&1
-      refresh
-    fi
+    set_aliases_
   fi
 
   return 0;
@@ -1837,7 +1958,7 @@ function covc() {
   local is_h=0
   eval "$(parse_flags_ "$@")"
 
-  if (( is_h || ! ${#1} )); then
+  if (( is_h )); then
     print "${yellow_cor} covc <branch>${clear_cor} : to compare test coverage with another branch of the same project"
     return 0;
   fi
@@ -1872,9 +1993,16 @@ function covc() {
   #   return 1;
   # fi
 
-  my_branch=$(git branch --show-current)
+  local branch="$1"
 
-  if [[ "$1" == "$my_branch" ]]; then
+  if [[ -z "$branch" ]]; then
+    covc -h
+    return 0;
+  fi
+
+  local my_branch=$(git branch --show-current)
+
+  if [[ "$branch" == "$my_branch" ]]; then
     print " trying to compare with the same branch"; >&2
     return 1;
   fi
@@ -1894,7 +2022,7 @@ function covc() {
   pipe_name=$(mktemp -u)
   mkfifo "$pipe_name" &>/dev/null
 
-  gum spin --title "running test coverage on $1..." -- sh -c "read < $pipe_name" &
+  gum spin --title "running test coverage on $branch..." -- sh -c "read < $pipe_name" &
   spin_pid=$!
 
   local is_single_mode=$(is_project_single_mode_)
@@ -1912,7 +2040,7 @@ function covc() {
 
     git reset --hard --quiet origin
     git fetch origin --quiet
-    git switch "$1" --quiet &>/dev/null
+    git switch "$branch" --quiet &>/dev/null
     _exit_code=$?
   else
     rm -rf "$cov_folder" &>/dev/null
@@ -1926,7 +2054,7 @@ function covc() {
       eval "$Z_CURRENT_CLONE" &>/dev/null
     fi
 
-    git switch "$1" --quiet &>/dev/null
+    git switch "$branch" --quiet &>/dev/null
     _exit_code=$?
   fi
 
@@ -1943,7 +2071,7 @@ function covc() {
     setopt monitor
     setopt notify
     
-    print " did not match any branch known to git: $1" >&2
+    print " did not match any branch known to git: $branch" >&2
 
     return 1;
   fi
@@ -1957,19 +2085,19 @@ function covc() {
     mkdir -p coverage &>/dev/null
   fi
 
-  eval "$Z_CURRENT_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$1.txt" 2>&1
+  eval "$Z_CURRENT_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$branch.txt" 2>&1
   if (( $? != 0 )); then
-    eval "$Z_CURRENT_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$1.txt" 2>&1
+    eval "$Z_CURRENT_COV" --coverageReporters=text-summary > "coverage/coverage-summary.$branch.txt" 2>&1
   fi
 
-  echo "   running test coverage on $1..."
+  echo "   running test coverage on $branch..."
 
   echo "done" > "$pipe_name" &>/dev/null
   # kill $spin_pid &>/dev/null
   rm "$pipe_name"
   wait $spin_pid &>/dev/null
 
-  summary1=$(grep -A 4 "Coverage summary" "coverage/coverage-summary.$1.txt")
+  summary1=$(grep -A 4 "Coverage summary" "coverage/coverage-summary.$branch.txt")
 
   # Extract each coverage percentage
   statements1=$(echo "$summary1" | grep "Statements" | awk '{print $3}' | tr -d '%')
@@ -1980,7 +2108,7 @@ function covc() {
   if [[ $is_delete_cov_folder -eq 1 ]]; then
     rm -rf "coverage" &>/dev/null
   else
-    rm -f "coverage/coverage-summary.$1.txt" &>/dev/null
+    rm -f "coverage/coverage-summary.$branch.txt" &>/dev/null
     rm -f "coverage/coverage-summary.$my_branch.txt" &>/dev/null
   fi
 
@@ -2021,7 +2149,7 @@ function covc() {
   funcs2=$(echo "$summary2" | grep "Functions" | awk '{print $3}' | tr -d '%')
   lines2=$(echo "$summary2" | grep "Lines" | awk '{print $3}' | tr -d '%')
 
-  # print "\033[32m on $1\033[0m"
+  # print "\033[32m on $branch\033[0m"
   # print "$summary1"
   # print "\033[32m on $my_branch\033[0m"
   # print "$summary2"
@@ -2048,7 +2176,7 @@ function covc() {
   if [[ $is_delete_cov_folder -eq 1 ]]; then
     rm -rf "coverage" &>/dev/null
   else
-    rm -f "coverage/coverage-summary.$1.txt" &>/dev/null
+    rm -f "coverage/coverage-summary.$branch.txt" &>/dev/null
     rm -f "coverage/coverage-summary.$my_branch.txt" &>/dev/null
   fi
 
@@ -2092,7 +2220,7 @@ function cov() {
 
   check_pkg_; if (( $? != 0 )); then return 1; fi
 
-  if [[ $1 != -* ]]; then
+  if [[ -n "$1" && $1 != -* ]]; then
     covc "$@"
     return $?;
   fi
@@ -3238,8 +3366,13 @@ function renb() {
   local is_h=0
   eval "$(parse_flags_ "$@")"
 
-  if (( is_h || ! ${#1} )); then
+  if (( is_h )); then
     print "${yellow_cor} renb <branch>${clear_cor} : to rename a branch"
+    return 0;
+  fi
+
+  if [[ -z "$1" ]]; then
+    renb -h
     return 0;
   fi
 
@@ -3252,8 +3385,13 @@ function chp() {
   local is_h=0
   eval "$(parse_flags_ "$@")"
 
-  if (( is_h || ! ${#1} )); then
+  if (( is_h )); then
     print "${yellow_cor} chp <commit>${clear_cor} : to cherry-pick a commit"
+    return 0;
+  fi
+
+  if [[ -z "$1" ]]; then
+    chp -h
     return 0;
   fi
 
@@ -3413,7 +3551,7 @@ function repush() {
 
   if (( is_h )); then
     print "${yellow_cor} repush${clear_cor} : to reset last commit then re-push all changes"
-    print "${yellow_cor} repush -s${clear_cor} : only staged changes"
+    print "${yellow_cor}     -s${clear_cor} : only staged changes"
     return 0;
   fi
 
@@ -3428,7 +3566,7 @@ function recommit() {
 
   if (( is_h )); then
     print "${yellow_cor} recommit${clear_cor} : to reset last commit then re-commit all changes"
-    print "${yellow_cor} recommit -s${clear_cor} : only staged changes"
+    print "${yellow_cor}       -s${clear_cor} : only staged changes"
     return 0;
   fi
 
@@ -3492,9 +3630,9 @@ function commit() {
 
   if (( is_h )); then
     print "${yellow_cor} commit${clear_cor} : to open commit wizard"
-    print "${yellow_cor} commit -a${clear_cor} : commit wizard all files"
-    print "${yellow_cor} commit <message>${clear_cor} : with message"
-    print "${yellow_cor} commit -a <message>${clear_cor} : commit all files with message"
+    print "${yellow_cor}     -a${clear_cor} : to open wizard and commit all files"
+    print "${yellow_cor} commit <message>${clear_cor} : to commit with message"
+    print "${yellow_cor}     -a <message>${clear_cor} : to commit all files with message"
     return 0;
   fi
 
@@ -3578,7 +3716,7 @@ function commit() {
     print "$msg_arg"
   fi
 
-  if [[ $is_flagged ]]; then
+  if (( )); then
     git commit --no-verify --message "$msg_arg" ${@:3}
   else
     git commit --no-verify --message "$msg_arg" ${@:2}
@@ -3637,9 +3775,9 @@ function push() {
 
   if (( is_h )); then
     print "${yellow_cor} push${clear_cor} : to push with no-verify"
+    print " ${yellow_cor} -fl${clear_cor} : force with lease"
     print " ${yellow_cor}  -t${clear_cor} : push tags"
     print " ${yellow_cor}  -f${clear_cor} : force"
-    print " ${yellow_cor}  -fl${clear_cor} : force with lease"
     return 0;
   fi
 
@@ -3695,7 +3833,7 @@ function stash() {
   local is_h=0
   eval "$(parse_flags_ "$@")"
 
-  if (( is_h || ! ${#1} )); then
+  if (( is_h )); then
     print "${yellow_cor} stash ${clear_cor} : to stash all files unnamed"
     print "${yellow_cor} stash <name>${clear_cor} : to stash all files with name"
     return 0;
@@ -3703,15 +3841,24 @@ function stash() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  git stash push --include-untracked --message "${1:-.}"
+  if [[ -z "$1" ]]; then
+    git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)" ${@:2}
+    return 0;
+  fi
+
+  git stash push --include-untracked --message $@
 }
 
 function dtag() {
   local is_h=0
   eval "$(parse_flags_ "$@")"
 
-  if (( is_h || ! ${#1} )); then
+  if (( is_h )); then
     print "${yellow_cor} dtag <name>${clear_cor} : to delete a tag"
+    return 0;
+  fi
+  if [[ -z "$1" ]]; then
+    dtag -h
     return 0;
   fi
 
@@ -3720,38 +3867,39 @@ function dtag() {
   open_prj_for_git_
   if (( $? != 0 )); then return 1; fi
   
-  git fetch --tags --prune-tags --quiet
+  fetch --quiet
 
-  git tag -d $1
+  git tag -d "$1" ${@:2}
 
   if (( $? != 0 )); then
     cd "$_pwd"
     return 1;
   fi
 
-  git push origin --delete $1
+  git push origin --delete "$1" ${@:2}
+
   cd "$_pwd"
 }
 
 function pull() {
-  local is_h=0 is_t=0
+  local is_h=0 is_t=0 id_q=0
   eval "$(parse_flags_ "$@")"
 
   if (( is_h )); then
-    print "${yellow_cor} pull${clear_cor} : to pull all branches"
-    print " ${yellow_cor}  -t${clear_cor} : pull tags"
+    print "${yellow_cor} pull ${solid_yellow_cor}[<origin_branch>]${clear_cor} : to pull from origin branch"
+    print " ${yellow_cor}  -t${clear_cor} : to pull tags"
     return 0;
   fi
 
   # let git command fail
 
-  if [[ $ts_t ]] then
+  if (( is_t )); then
     git pull origin --tags "$@"
   else
     git pull origin "$@"
   fi
 
-  if [[ $? -eq 0 && ! $ts_t ]]; then
+  if (( ! $? && ! is_t && ! is_q )); then
     print ""
     git log -1 --pretty=format:'%H %s' | xargs -0
   fi
@@ -3761,8 +3909,12 @@ function tag() {
   local is_h=0
   eval "$(parse_flags_ "$@")"
 
-  if (( is_h || ! ${#1} )); then
+  if (( is_h )); then
     print "${yellow_cor} tag <name>${clear_cor} : to create a new tag"
+    return 0;
+  fi
+  if [[ -z "$1" ]]; then
+    tah -h
     return 0;
   fi
 
@@ -3771,15 +3923,13 @@ function tag() {
   open_prj_for_git_
   if (( $? != 0 )); then return 1; fi
   
-  prune >/dev/null
+  prune &>/dev/null
 
-  git tag --annotate "$1" --message "$1"
-  if (( $? != 0 )); then
-    cd "$_pwd"
-    return 1;
+  git tag --annotate "$1" --message "$1" ${@:2}
+  if (( $? == 0 )); then
+    git push --no-verify --tags
   fi
 
-  git push --no-verify --tags
   cd "$_pwd"
 }
 
@@ -5553,22 +5703,12 @@ function load_config_() {
 load_config_
 clear_curr_prj_
 
-# clear project names if they are invalid
-# for i in {1..9}; do
-#   if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-#     check_prj_ $i -q
-#     if (( $? != 0 )); then
-#       clear_prj_ $i
-#     fi
-#   fi
-# done
-
 PUMP_PRO_FILE="$(dirname "$0")/.pump"
 
 # auto pro ===============================================================
 # pro pwd
-(( is_d )) && print "pro pwd about to start" >&1
-pro -fp pwd
+(( is_d )) && print "pro pwd" >&1
+pro -f pwd &>/dev/null
 if (( $? != 0 )); then
   # Read the current project short name from the PUMP_PRO_FILE if it exists
   pump_pro_file_value=""
@@ -5621,60 +5761,6 @@ if (( $? != 0 )); then
   done
 fi
 # ==========================================================================
-
-alias i="$Z_CURRENT_PACKAGE_MANAGER install"
-# Package manager aliases =========================================================
-alias build="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")build"
-alias deploy="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")deploy"
-alias fix="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format && $Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
-alias format="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")format"
-alias ig="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")install --global"
-alias lint="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")lint"
-alias rdev="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")dev"
-alias tsc="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")tsc"
-alias sb="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook"
-alias sbb="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")storybook:build"
-alias start="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")start"
-
-unalias ncov &>/dev/null
-unalias ntest &>/dev/null
-unalias ne2e &>/dev/null
-unalias ne2eui &>/dev/null
-unalias ntestw &>/dev/null
-
-unalias ycov &>/dev/null
-unalias ytest &>/dev/null
-unalias ye2e &>/dev/null
-unalias ye2eui &>/dev/null
-unalias ytestw &>/dev/null
-
-unalias pcov &>/dev/null
-unalias ptest &>/dev/null
-unalias pe2e &>/dev/null
-unalias pe2eui &>/dev/null
-unalias ptestw &>/dev/null
-
-unalias bcov &>/dev/null
-unalias btest &>/dev/null
-unalias be2e &>/dev/null
-unalias be2eui &>/dev/null
-unalias btestw &>/dev/null 
-
-if [[ "$Z_CURRENT_COV" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage" ]]; then
-  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}cov="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:coverage"
-fi
-if [[ "$Z_CURRENT_TEST" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test" ]]; then
-  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}test="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test"
-fi
-if [[ "$Z_CURRENT_E2E" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e" ]]; then
-  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}e2e="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e"
-fi
-if [[ "$Z_CURRENT_E2EUI" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui" ]]; then
-  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}e2eui="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:e2e-ui"
-fi
-if [[ "$Z_CURRENT_TEST_WATCH" != "$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch" ]]; then
-  alias ${Z_CURRENT_PACKAGE_MANAGER:0:1}testw="$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")test:watch"
-fi
 
 # project functions =========================================================
 function z_project_handler() {
