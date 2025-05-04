@@ -28,7 +28,7 @@
             "style": "folder"
           },
           "style": "plain",
-          "template": "<b>{{ .Env.Z_CURRENT_PROJECT_SHORT_NAME }}{{if .Env.Z_CURRENT_PROJECT_SHORT_NAME}}⟣{{ end }}</b>",
+          "template": "<b>{{ .Env.Z_CURRENT_PROJECT_SHORT_NAME }}{{ if .Env.Z_CURRENT_PROJECT_SHORT_NAME }}⟣{{ end }}</b>",
           "type": "path"
         },
         {
