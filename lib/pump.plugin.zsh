@@ -1,65 +1,102 @@
-function parse_flags_unshift_() {
-  local OPTIND opt
-  local -A flags
-
-  for opt in {a..z}; do
-    flags[$opt]=0
-  done
-
-  while getopts ":abcdefghijklmnopqrstuvwxyz" opt; do
-    if [[ $opt != "?" ]]; then
-      flags[$opt]=1
-    fi
-  done
-
-  for opt in ${(k)flags}; do
-    echo "is_$opt=${flags[$opt]}"
-  done
-}
+typeset -g is_d=0 # (debug flag) when -d is on, it will be shared across all subsequent function calls
 
 function parse_flags_() {
-  local OPTIND opt
-  local -A flags
+  local prefix=$1
+  shift
+  # if [[ $prefix == -* ]]; then
+  #   prefix=""
+  # else
+  #   shift
+  # fi
 
+  local OPTIND=1 opt
+  local -A flags
+  
   for opt in {a..z}; do
     flags[$opt]=0
   done
 
   while getopts ":abcdefghijklmnopqrstuvwxyz" opt; do
-    if [[ $opt != "?" ]]; then
-      flags[$opt]=1
-    fi
+    case "$opt" in
+      \?) break ;;
+      *) flags[$opt]=1 ;;
+    esac
   done
 
   for opt in ${(k)flags}; do
-    echo "is_$opt=${flags[$opt]}"
+    echo "${prefix}is_$opt=${flags[$opt]}"
+    if [[ "$opt" == "d" ]]; then
+      if (( flags[$opt] || is_d )); then
+        echo "is_d=1" # keep is_d on
+      fi
+    fi
   done
 
-  shift $((OPTIND - 1))
-  echo "set -- $@"
+  if (( OPTIND > 1 )); then
+    shift $((OPTIND - 1))
+  fi
+
+  echo "set -- ${(q+)@}"
 }
 
-# function test_parse_flags() {
-#   local is_c=0 is_a=0 is_b=0
-#   eval "$(parse_flags_ "$@")"
+# # --- Function: main ---
+# main() {
+#   eval "$(parse_flags_ "" "$@")"
 
-#   echo "\$1 $1"
-#   echo "\$2 $2"
-#   echo "\$3 $3"
+#   print "main arguments: $@"
 
-#   echo "is_a $is_a"
-#   echo "is_b $is_b"
-#   echo "is_c $is_c"
+#   print "main is_a: ${is_a:-0}"
+#   print "main is_b: ${is_b:-0}"
 
-#   echo "$@"
-#   echo "${@:1}"
-#   echo "${@:2}"
-#   echo "${@:3}"
+#   print "main argument_1: $1"
+#   print "main argument_2: $2"
+
+#   print ""
+
+#   child -c hey "$@"
+#   print ""
+
+#   print "main is_a: ${is_a:-0}"
+#   print "main is_b: ${is_b:-0}"
+#   print "main is_c: ${is_c:-0}"
 # }
 
-# test_parse_flags -c -a -b "test" "test2" "test3"
-# print "===============" 
-# test_parse_flags "test" "test2" "test3" 
+# # --- Function: child ---
+# child() {
+#   eval "$(parse_flags_ "child_" "$@")"
+
+#   print "child arguments: $@"
+
+#   print "child is_a: ${child_is_a:-0}"
+#   print "child is_b: ${child_is_b:-0}"
+#   print "child is_c: ${child_is_c:-0}"
+
+#   print "child argument_1: $1"
+#   print "child argument_2: $2"
+#   print "child argument_3: $3"
+# }
+
+# print "=== 1"
+#   print ""
+# main -a --world
+#   print ""
+# print "=== 2"
+#   print ""
+# main hello2
+#   print ""
+# print "=== 3"
+#   print ""
+# main -ab hello3 --world3
+#   print ""
+# print "=== 4"
+#   print ""
+# main
+#   print ""
+# print "=== 5"
+#   print ""
+# main -b
+#   print ""
+
 
 function confirm_from_() {
   if command -v gum &>/dev/null; then
@@ -92,8 +129,7 @@ typeset -g PUMP_VERSION="0.0.0"
 [[ -f "$(dirname "$0")/.version" ]] && PUMP_VERSION=$(<"$(dirname "$0")/.version")
 
 function update_() {
-  local is_c=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   local release_tag="https://api.github.com/repos/fab1o/pump-my-shell/releases/latest"
   local latest_version=$(curl -s $release_tag | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
@@ -261,8 +297,7 @@ function get_folders_() {
 
 # Deleting a path
 function del() {
-  local is_h=0 is_a=0 is_s=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} del${clear_cor} : to select folders in current folder to delete"
@@ -890,13 +925,12 @@ function help() {
 
 # data checkers =========================================================
 function check_prj_name_() {
-  local is_s=0 is_d=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   local i="$1"
   local name="${2:-$Z_PROJECT_SHORT_NAME[$i]}"
 
-  (( is_d )) && print " debug: check_prj_name_ index: $i - name: $name - is_s: $is_s" >&1
+  print_debug_ "check_prj_name_ index: $i - name: $name - is_s: $is_s"
 
   local error_msg=""
 
@@ -942,8 +976,7 @@ function check_prj_name_() {
 }
 
 function get_prj_repo_() {
-  local is_s=0 is_d=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   local i="$1"
   local repo="${2:-$Z_PROJECT_REPO[$i]}"
@@ -968,7 +1001,7 @@ function get_prj_repo_() {
     print " $warn_msg" >&2
   fi
 
-  (( is_d )) && print " debug: get_prj_repo_ index: $i - repo: $repo - is_s: $is_s" >&2
+  print_debug_ "get_prj_repo_ index: $i - repo: $repo - is_s: $is_s"
 
   if [[ -n "$error_msg" ]]; then
     print " $error_msg" >&2
@@ -985,14 +1018,19 @@ function get_prj_repo_() {
   return 0;
 }
 
+function print_debug_() {
+  if (( is_d )); then
+    print "debug: $1" >&2
+  fi
+}
+
 function get_prj_realfolder_() {
-  local is_s=0 is_d=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   local i="$1"
   local folder="${2:-$Z_PROJECT_FOLDER[$i]}"
 
-  (( is_d )) && print " debug: get_prj_realfolder_ index: $i - folder: $folder - is_s: $is_s" >&2
+  print_debug_ "get_prj_realfolder_ index: $i - folder: $folder - is_s: $is_s"
 
   local error_msg=""
   local realfolder=""
@@ -1004,13 +1042,13 @@ function get_prj_realfolder_() {
     [[ -n "$folder" ]] && realfolder=$(realpath "$folder" 2>/dev/null)
 
     if [[ -z "$realfolder" ]]; then
-      (( is_d )) && print " realfolder is empty, trying to create folder: $folder" >&2
+      print_debug_ "realfolder is empty, trying to create folder: $folder"
       mkdir -p "$folder" &>/dev/null
       realfolder=$(realpath "$folder" 2>/dev/null)
     fi
 
     if [[ -z "$realfolder" ]]; then
-      (( is_d )) && print " realfolder is still empty, trying to create folder with sudo: $folder" >&2
+      print_debug_ "realfolder is still empty, trying to create folder with sudo: $folder"
       sudo mkdir -p "$folder" &>/dev/null
       realfolder=$(realpath "$folder" 2>/dev/null)
     fi
@@ -1020,7 +1058,7 @@ function get_prj_realfolder_() {
     fi
   fi
 
-  (( is_d )) && print " realfolder: $realfolder - error_msg: $error_msg" >&2
+  print_debug_ "realfolder: $realfolder - error_msg: $error_msg"
 
   if [[ -n "$error_msg" ]]; then
     print " $error_msg" >&2
@@ -1039,8 +1077,7 @@ function get_prj_realfolder_() {
 }
 
 function check_prj_pkg_manager_() {
-  local is_s=0 is_d=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   local i="$1"
   local pkg_manager="${2:-$Z_PACKAGE_MANAGER[$i]}"
@@ -1075,7 +1112,7 @@ function check_prj_pkg_manager_() {
 }
 
 function check_prj_() {
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   local i="$1"
 
@@ -1166,7 +1203,7 @@ function save_prj_folder_() {
   if [[ -n "$typed_folder" ]]; then
     local realfolder=$(get_prj_realfolder_ $i "$typed_folder")
 
-    (( is_d )) && print " realfolder: $realfolder" >&2
+    print_debug_ "realfolder: $realfolder"
 
     if [[ -n "$realfolder" ]]; then
       if (( i > 0 )); then
@@ -1240,8 +1277,7 @@ function save_prj_pkg_manager_() {
 
 # save_prj_ <index>
 function save_prj_() {
-  local is_e=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   local i="$1"
 
@@ -1518,8 +1554,7 @@ function print_current_proj() {
 }
 
 function pro() {
-  local is_h=0 is_a=0 is_e=0 is_r=0 is_u=0 is_p=0 is_f=0 is_d=0 
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} pro <pro>${clear_cor} : to set a project"
@@ -1652,14 +1687,14 @@ function pro() {
   fi
 
   if [[ "$proj_arg" == "pwd" ]]; then
-    proj_arg=$(which_pro_pwd_); (( is_d )) && print " debug: which_pro_pwd_: $proj_arg" >&1
+    proj_arg=$(which_pro_pwd_); print_debug_ "which_pro_pwd_: $proj_arg"
     
     if [[ -z "$proj_arg" ]]; then
       return 1;
     fi
   fi
 
-  (( is_d )) && print " debug: pro proj_arg: $proj_arg" >&1
+  print_debug_ "pro proj_arg: $proj_arg"
 
   local found=0
   # Check if the project name matches one of the configured projects
@@ -1689,7 +1724,7 @@ function pro() {
     is_refresh=0
   fi
 
-  (( is_d )) && print " project found $i: $proj_arg" >&1
+  print_debug_ "project found $i: $proj_arg"
 
   # set the current project
   Z_CURRENT_PROJECT_SHORT_NAME="${Z_PROJECT_SHORT_NAME[$i]}"
@@ -1855,8 +1890,7 @@ function check_git_() {
 }
 
 function refix() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} refix${clear_cor} : to reset last commit then run fix then re-push"
@@ -1955,8 +1989,7 @@ function is_project_single_mode_() {
 }
 
 function covc() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} covc <branch>${clear_cor} : to compare test coverage with another branch of the same project"
@@ -2185,8 +2218,7 @@ function covc() {
 }
 
 function test() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} test${clear_cor} : to run Z_TEST"
@@ -2209,8 +2241,7 @@ function test() {
 }
 
 function cov() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} cov${clear_cor} : to run Z_COV"
@@ -2246,8 +2277,7 @@ function cov() {
 }
 
 function testw() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} testw${clear_cor} : to run Z_TEST_WATCH"
@@ -2260,8 +2290,7 @@ function testw() {
 }
 
 function e2e() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} e2e${clear_cor} : to run Z_E2E"
@@ -2279,8 +2308,7 @@ function e2e() {
 }
 
 function e2eui() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} e2eui${clear_cor} : to run Z_E2EUI"
@@ -2298,8 +2326,7 @@ function e2eui() {
 }
 
 function add() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} add${clear_cor} : to add all files to index"
@@ -2318,8 +2345,7 @@ function add() {
 
 # Creating PRs =============================================================
 function pr() {
-  local is_h=0 is_t=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} pr${clear_cor} : to create a pull request"
@@ -2471,8 +2497,7 @@ function pr() {
 }
 
 function run() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} run${clear_cor} : to run dev in current folder"
@@ -2611,8 +2636,7 @@ function run() {
 }
 
 function setup() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
       print "${yellow_cor} setup${clear_cor} : to setup current folder"
@@ -2709,8 +2733,7 @@ function setup() {
 # Clone =====================================================================
 # review branch
 function revs() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
@@ -2798,8 +2821,7 @@ function revs() {
 }
 
 function rev() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} rev${clear_cor} : open a pull request for review"
@@ -3043,8 +3065,7 @@ function get_clone_default_branch_() { # $1 = repo uri # $2 = folder # $3 = bran
 
 # clone my project and checkout branch
 function clone() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
@@ -3347,8 +3368,7 @@ function clone() {
 }
 
 function abort() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} abort${clear_cor} : to abort any in progress rebase, merge and cherry-pick"
@@ -3363,8 +3383,7 @@ function abort() {
 }
 
 function renb() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} renb <branch>${clear_cor} : to rename a branch"
@@ -3382,8 +3401,7 @@ function renb() {
 }
 
 function chp() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} chp <commit>${clear_cor} : to cherry-pick a commit"
@@ -3401,8 +3419,7 @@ function chp() {
 }
 
 function chc() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} chc${clear_cor} : to continue in progress cherry-pick"
@@ -3415,8 +3432,7 @@ function chc() {
 }
 
 function mc() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} mc${clear_cor} : to continue in progress merge"
@@ -3431,8 +3447,7 @@ function mc() {
 }
 
 function rc() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} rc${clear_cor} : to continue in progress rebase"
@@ -3447,8 +3462,7 @@ function rc() {
 }
 
 function conti() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} conti${clear_cor} : to continue any in progress rebase, merge or cherry-pick"
@@ -3466,8 +3480,7 @@ function conti() {
 
 # Commits -----------------------------------------------------------------------
 function reset1() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} reset1${clear_cor} : to reset last commit"
@@ -3482,8 +3495,7 @@ function reset1() {
 }
 
 function reset2() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} reset2${clear_cor} : to reset 2 last commits"
@@ -3498,8 +3510,7 @@ function reset2() {
 }
 
 function reset3() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} reset3${clear_cor} : to reset 3 last commits"
@@ -3514,8 +3525,7 @@ function reset3() {
 }
 
 function reset4() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} reset4${clear_cor} : to reset 4 last commits"
@@ -3530,8 +3540,7 @@ function reset4() {
 }
 
 function reset5() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} reset5${clear_cor} : to reset 5 last commits"
@@ -3546,8 +3555,7 @@ function reset5() {
 }
 
 function repush() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} repush${clear_cor} : to reset last commit then re-push all changes"
@@ -3561,8 +3569,7 @@ function repush() {
 }
 
 function recommit() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} recommit${clear_cor} : to reset last commit then re-commit all changes"
@@ -3625,8 +3632,7 @@ function recommit() {
 }
 
 function commit() {
-  local is_h=0 is_a=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} commit${clear_cor} : to open commit wizard"
@@ -3724,8 +3730,7 @@ function commit() {
 }
 
 function fetch() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "f_" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} fetch${clear_cor} : to fetch all branches"
@@ -3735,12 +3740,12 @@ function fetch() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  if [[ $is_flagged ]]; then
-    git fetch origin --tags --prune-tags --prune
-  elif [[ "$1" == -* ]]; then
-    git fetch origin --tags --prune-tags --prune "$@"
+  if [[ -n "$1" ]]; then
+    print_debug_ "git fetch origin $1 --tags --prune-tags --prune ${@:2}"
+    git fetch origin $1 --tags --prune-tags --prune ${@:2}
   else
-    git fetch origin $1:$1 --tags --prune-tags --prune ${@:2}
+    print_debug_ "git fetch origin --tags --prune-tags --prune $@"
+    git fetch origin --tags --prune-tags --prune "$@"
   fi
 }
 
@@ -3751,8 +3756,7 @@ function gconf() {
 }
 
 function glog() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} glog <name>${clear_cor} : to log last 15 commits"
@@ -3770,8 +3774,7 @@ function glog() {
 }
 
 function push() {
-  local is_h=0 is_t=0 is_f=0 is_l=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "p_" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} push${clear_cor} : to push with no-verify"
@@ -3783,31 +3786,35 @@ function push() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  fetch --quiet
+  fetch $@
 
   local my_branch=$(git branch --show-current)
 
-  if (( is_t && $is_f )); then
+  if (( p_is_t && p_is_f )); then
+    print_debug_ "push -tf: git push --no-verify --tags --force $@"
     git push --no-verify --tags --force "$@"
-  elif (( is_t )); then
+  elif (( p_is_t )); then
+    print_debug_ "push -t: git push --no-verify --tags $@"
     git push --no-verify --tags "$@"
-  elif (( is_f && $is_l )); then
+  elif (( p_is_f && p_is_l )); then
+    print_debug_ "push -fl: git push --no-verify --force-with-lease $@"
     git push --no-verify --force-with-lease --set-upstream origin $my_branch "$@"
-  elif (( is_f )); then
+  elif (( p_is_f )); then
+    print_debug_ "push -f: git push --no-verify --force $@"
     git push --no-verify --force --set-upstream origin $my_branch "$@"
   else
+    print_debug_ "push: git push --no-verify --set-upstream origin $my_branch $@"
     git push --no-verify --set-upstream origin $my_branch "$@"
   fi
 
-  if (( ! $? && ! $is_t )); then
+  if (( ! $? && ! p_is_t )); then
     print ""
     git log -1 --pretty=format:'%H %s' | xargs -0
   fi
 }
 
 function pushf() {
-  local is_h=0 is_t=0 is_q=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} pushf${clear_cor} : to force push no-verify"
@@ -3830,8 +3837,7 @@ function pushf() {
 }
 
 function stash() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} stash ${clear_cor} : to stash all files unnamed"
@@ -3850,8 +3856,7 @@ function stash() {
 }
 
 function dtag() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} dtag <name>${clear_cor} : to delete a tag"
@@ -3882,8 +3887,7 @@ function dtag() {
 }
 
 function pull() {
-  local is_h=0 is_t=0 id_q=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} pull ${solid_yellow_cor}[<origin_branch>]${clear_cor} : to pull from origin branch"
@@ -3906,8 +3910,7 @@ function pull() {
 }
 
 function tag() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} tag <name>${clear_cor} : to create a new tag"
@@ -3934,8 +3937,7 @@ function tag() {
 }
 
 function tags() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} tags${clear_cor} : to list all tags"
@@ -3976,8 +3978,7 @@ function tags() {
 }
 
 function restore() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} restore${clear_cor} : to undo edits in tracked files"
@@ -3990,8 +3991,7 @@ function restore() {
 }
 
 function clean() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} clean${clear_cor} : to delete all untracked files and directories and undo edits in tracked files"
@@ -4005,8 +4005,7 @@ function clean() {
 }
 
 function discard() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} discard${clear_cor} : to undo everything that have not been committed"
@@ -4020,8 +4019,7 @@ function discard() {
 }
 
 function reseta() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} reseta${clear_cor} : to erase everything and match HEAD to origin"
@@ -4109,8 +4107,7 @@ function get_prj_for_git_() {
 # List branches -----------------------------------------------------------------------
 # list remote branches that contains an optional text and adds a link to the branch in github
 function glr() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} gll${clear_cor} : to list remote branches"
@@ -4134,8 +4131,7 @@ function glr() {
 
 # list only branches that contains an optional text
 function gll() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} gll${clear_cor} : to list branches"
@@ -4353,8 +4349,7 @@ function gha_auto_() {
 }
 
 function gha() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} gha${solid_yellow_cor} [<workflow>]${clear_cor} : to check status of workflow in current project"
@@ -4531,8 +4526,7 @@ function gha() {
 }
 
 function co() {
-  local is_h=0 is_a=0 is_r=0 is_b=0 is_e=0 is_p=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} co${clear_cor} : to list branches to switch"
@@ -4578,7 +4572,7 @@ function co() {
   fi
 
   # co pr
-  if [[ $is_p && $is_r ]]; then
+  if (( is_p && is_r )); then
     local pr=("${(@f)$(select_pr_ "$2")}")
     if (( $? != 0 )); then return 0; fi
 
@@ -4703,8 +4697,7 @@ function co() {
 }
 
 function back() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} back${clear_cor} : to go back to previous branch (in single mode) or folder (in multi mode)"
@@ -5018,8 +5011,7 @@ function delete_pump_workings_(){
 }
 
 function pop() {
-  local is_h=0 is_a
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} pop${clear_cor} : to pop stash"
@@ -5037,8 +5029,7 @@ function pop() {
 }
 
 function st() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} st${clear_cor} : to show git status"
@@ -5051,8 +5042,7 @@ function st() {
 }
 
 function stashes() {
-  local is_h=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} stashes${clear_cor} : to show git stashes"
@@ -5687,14 +5677,14 @@ function load_config_() {
     Z_PROJECT_SHORT_NAME[$i]=$short_name
     # echo "$i - key: Z_PROJECT_SHORT_NAME, value: $short_name"
 
-    (( is_d )) && print "$i - key: Z_PROJECT_SHORT_NAME, value: $short_name" >&1
+    print_debug_ "$i - key: Z_PROJECT_SHORT_NAME, value: $short_name"
 
     # Set project folder path
     local _folder=$(sed -n "s/^Z_PROJECT_FOLDER_${i}=\\([^ ]*\\)/\\1/p" "$PUMP_CONFIG_FILE")
     Z_PROJECT_FOLDER[$i]=$_folder
     # echo "$i - key: Z_PROJECT_FOLDER, value: $realfolder"
 
-    (( is_d )) && print "$i - key: Z_PROJECT_FOLDER, value: $_folder" >&1
+    print_debug_ "$i - key: Z_PROJECT_FOLDER, value: $_folder"
 
     load_config_entry_ $i
   done
@@ -5707,7 +5697,7 @@ PUMP_PRO_FILE="$(dirname "$0")/.pump"
 
 # auto pro ===============================================================
 # pro pwd
-(( is_d )) && print "pro pwd" >&1
+print_debug_ "pro pwd"
 pro -f pwd &>/dev/null
 if (( $? != 0 )); then
   # Read the current project short name from the PUMP_PRO_FILE if it exists
@@ -5764,8 +5754,7 @@ fi
 
 # project functions =========================================================
 function z_project_handler() {
-  local is_h=0 is_l=0
-  eval "$(parse_flags_ "$@")"
+  eval "$(parse_flags_ "" "$@")"
 
   local i="$1"
   
