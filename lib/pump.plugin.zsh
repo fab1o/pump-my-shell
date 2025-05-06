@@ -2530,13 +2530,17 @@ function covc() {
     mkdir -p coverage &>/dev/null
   fi
 
+  git switch "$my_branch" --quiet
+  if (( $? != 0 )); then
+    print " did not match any branch known to git: $branch" >&2
+    return 1;
+  fi
+
   pipe_name=$(mktemp -u)
   mkfifo "$pipe_name" &>/dev/null
 
   gum spin --title "running test coverage on $my_branch..." -- sh -c "read < $pipe_name" &
   spin_pid=$!
-
-  git switch "$my_branch" --quiet
 
   eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.$my_branch.txt" 2>&1
   if (( $? != 0 )); then
@@ -2564,23 +2568,23 @@ function covc() {
   # print "$summary2"
 
   # # Print the extracted values
-  print ""
+  print "" >&1
   help_line_ "coverage" "${gray_cor}" 67
   help_line_ "${1:0:22}" "${gray_cor}" 32 "${my_branch:0:22}" 32
-  print ""
+  print "" >&1
 
   color=$(if [[ $statements1 -gt $statements2 ]]; then echo "${red_cor}"; elif [[ $statements1 -lt $statements2 ]]; then echo "${green_cor}"; else echo ""; fi)
-  print " Statements\t\t: $(printf "%.2f" $statements1)%  |${color} Statements\t\t: $(printf "%.2f" $statements2)% ${reset_cor}"
+  print " Statements\t\t: $(printf "%.2f" $statements1)%  |${color} Statements\t\t: $(printf "%.2f" $statements2)% ${reset_cor}" >&1
   
   color=$(if [[ $branches1 -gt $branches2 ]]; then echo "${red_cor}"; elif [[ $branches1 -lt $branches2 ]]; then echo "${green_cor}"; else echo ""; fi)
-  print " Branches\t\t: $(printf "%.2f" $branches1)%  |${color} Branches\t\t: $(printf "%.2f" $branches2)% ${reset_cor}"
+  print " Branches\t\t: $(printf "%.2f" $branches1)%  |${color} Branches\t\t: $(printf "%.2f" $branches2)% ${reset_cor}" >&1
   
   color=$(if [[ $funcs1 -gt $funcs2 ]]; then echo "${red_cor}"; elif [[ $funcs1 -lt $funcs2 ]]; then echo "${green_cor}"; else echo ""; fi)
-  print " Functions\t\t: $(printf "%.2f" $funcs1)%  |${color} Functions\t\t: $(printf "%.2f" $funcs2)% ${reset_cor}"
+  print " Functions\t\t: $(printf "%.2f" $funcs1)%  |${color} Functions\t\t: $(printf "%.2f" $funcs2)% ${reset_cor}" >&1
   
   color=$(if [[ $lines1 -gt $lines2 ]]; then echo "${red_cor}"; elif [[ $lines1 -lt $lines2 ]]; then echo "${green_cor}"; else echo ""; fi)
-  print " Lines\t\t\t: $(printf "%.2f" $lines1)%  |${color} Lines\t\t: $(printf "%.2f" $lines2)% ${reset_cor}"
-  print ""
+  print " Lines\t\t\t: $(printf "%.2f" $lines1)%  |${color} Lines\t\t: $(printf "%.2f" $lines2)% ${reset_cor}" >&1
+  print "" >&1
 
   if (( is_delete_cov_folder )); then
     rm -rf "coverage" &>/dev/null
@@ -2588,6 +2592,16 @@ function covc() {
     rm -f "coverage/coverage-summary.$branch.txt" &>/dev/null
     rm -f "coverage/coverage-summary.$my_branch.txt" &>/dev/null
   fi
+
+  print "" >&1
+  print "#### Coverage" >&1
+  print "| \`$1\` | \`${my_branch}\` |"
+  print "| --- | --- |" >&1
+  print "| Statements: $(printf "%.2f" $statements1)% | Statements: $(printf "%.2f" $statements2)% |" >&1
+  print "| Branches: $(printf "%.2f" $branches1)% | Branches: $(printf "%.2f" $branches2)% |" >&1
+  print "| Functions: $(printf "%.2f" $funcs1)% | Functions: $(printf "%.2f" $funcs2)% |" >&1
+  print "| Lines: $(printf "%.2f" $lines1)% | Lines: $(printf "%.2f" $lines2)% |" >&1
+  print "" >&1
 
   setopt monitor
   setopt notify
