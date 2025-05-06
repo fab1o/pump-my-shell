@@ -554,19 +554,19 @@ function del() {
     return 1;
   fi
 
-  local _pro=$(which_pro_pwd_)
-  local proj_folder=""
-  local pump_working_branch=""
+  # local _pro="$Z_PROJECT_SHORT_NAME"
+  # local proj_folder=""
+  # local pump_working_branch=""
 
-  if [[ -n "$_pro" ]]; then
-    for i in {1..9}; do
-      if [[ "$_pro" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-        proj_folder="${Z_PROJECT_FOLDER[$i]}"
-        pump_working_branch="${PUMP_WORKING[$i]}"
-        break
-      fi
-    done
-  fi
+  # if [[ -n "$_pro" ]]; then
+  #   for i in {1..9}; do
+  #     if [[ "$_pro" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+  #       proj_folder="${Z_PROJECT_FOLDER[$i]}"
+  #       pump_working_branch="${PUMP_WORKING[$i]}"
+  #       break
+  #     fi
+  #   done
+  # fi
 
   if [[ -z "$1" ]]; then
     if [[ -n ${(f)"$(get_files_)"} ]]; then
@@ -576,7 +576,7 @@ function del() {
         return 1;
       fi
 
-      delete_pump_workings_ "$pump_working_branch" "$_pro" "${selected_folders[@]}"
+      # delete_pump_workings_ "$pump_working_branch" "$_pro" "${selected_folders[@]}"
 
       for folder in "${selected_folders[@]}"; do
         gum spin --title "deleting... $folder" -- rm -rf "$folder"
@@ -648,9 +648,9 @@ function del() {
 
       _count=$(( _count + 1 ))
 
-      if [[ -d "$f" && -n "$pump_working_branch" && -n "$_pro" ]]; then
-        delete_pump_working_ $(basename "$f") "$pump_working_branch" "$_pro"
-      fi
+      # if [[ -d "$f" && -n "$pump_working_branch" && -n "$_pro" ]]; then
+      #   delete_pump_working_ $(basename "$f") "$pump_working_branch" "$_pro"
+      # fi
 
       gum spin --title "deleting... $f" -- rm -rf "$f"
       print "${magenta_cor} deleted${blue_cor} $f ${reset_cor}"
@@ -694,19 +694,23 @@ function del() {
     fi
   fi
 
-  local file_path_log="$file_path"
+  local file_path_log=""
 
   if [[ "$file_path" == "$(PWD)"* ]]; then # the file_path is inside the current path
     file_path_log=$(shorten_path_until_ "$file_path")
-  elif [[ -n "$$proj_folder" ]]; then
-    file_path_log=$(shorten_path_until_ "$file_path" $(basename "$proj_folder"))
+  elif [[ -n "$Z_CURRENT_PROJECT_FOLDER" ]]; then
+    file_path_log=$(shorten_path_until_ "$file_path" $(basename "$Z_CURRENT_PROJECT_FOLDER"))
   fi
 
-  if [[ -d "$file_path" && -n "$pump_working_branch" && -n "$_pro" ]]; then
-    delete_pump_working_ "$(basename "$file_path")" "$pump_working_branch" "$_pro"
-  fi
+  # if [[ -d "$file_path" && -n "$pump_working_branch" && -n "$_pro" ]]; then
+  #   delete_pump_working_ "$(basename "$file_path")" "$pump_working_branch" "$_pro"
+  # fi
 
   gum spin --title "deleting... $file_path" -- rm -rf "$file_path"
+
+  if [[ -z "$file_path_log" ]]; then
+    file_path_log="$file_path"
+  fi
 
   print "${magenta_cor} deleted${blue_cor} $file_path_log ${reset_cor}"
 
@@ -739,29 +743,31 @@ function update_config_() {
     return 1;
   fi
 
-  local key=$1
-  local value=$2
+  local i=$1
+  local key="$2"
+  local value="$3"
+
+  key="${key:u}_${i}"
+
+  print_debug_ "update_config_ $key=$value"
 
   if [[ "$(uname)" == "Darwin" ]]; then
-    # macOS (BSD sed) requires correct handling of patterns
-    sed -i '' "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG_FILE" &>/dev/null
+    if grep -q "^${key}=" "$PUMP_CONFIG_FILE"; then
+      sed -i '' "s|^${key}=.*|${key}=${value}|" "$PUMP_CONFIG_FILE"
+    else
+      echo "${key}=${value}" >> "$PUMP_CONFIG_FILE"
+    fi
     RET=$?
-    # if (( RET != 0 )); then
-    #   sudo sed -i '' "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG_FILE" &>/dev/null
-    #   RET=$?
-    # fi
   else
-    # Linux (GNU sed)
-    sed -i "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG_FILE" &>/dev/null
+    if grep -q "^${key}=" "$PUMP_CONFIG_FILE"; then
+      sed -i "s|^${key}=.*|${key}=${value}|" "$PUMP_CONFIG_FILE"
+    else
+      echo "${key}=${value}" >> "$PUMP_CONFIG_FILE"
+    fi
     RET=$?
-    # if (( RET != 0 )); then
-    #   sudo sed -i "s|^$key=[^[:space:]]*|$key=$value|" "$PUMP_CONFIG_FILE" &>/dev/null
-    #   RET=$?
-    # fi
   fi
 
   if (( RET != 0 )); then
-    #print "${red_cor} failed to update $key in config '$PUMP_CONFIG_FILE', re-install pump-my-shell ${reset_cor}" >&2
     return 1;
   fi
 
@@ -1522,7 +1528,7 @@ function save_prj_name_really_() {
   print_debug_ "save_prj_name_really_ index: $i - name: $name"
 
   if (( i > 0 )); then
-    update_config_ "Z_PROJECT_SHORT_NAME_$i" "$name"
+    update_config_ $i "Z_PROJECT_SHORT_NAME" "$name"
     Z_PROJECT_SHORT_NAME[$i]="$name"
 
     print " project saved: $name" >&2
@@ -1582,7 +1588,7 @@ function save_prj_folder_() {
     folder=$(get_prj_folder_ $i "$folder")
     if [[ -n "$folder" ]]; then
       if (( i > 0 )); then
-        update_config_ "Z_PROJECT_FOLDER_$i" "$folder"
+        update_config_ $i "Z_PROJECT_FOLDER" "$folder"
         Z_PROJECT_FOLDER[$i]="$folder"
       else
         Z_CURRENT_PROJECT_FOLDER="$folder"
@@ -1609,7 +1615,7 @@ function save_prj_repo_() {
     get_prj_repo_ $i "$typed_repo"
     if (( $? == 0 )); then
       if (( i > 0 )); then
-        update_config_ "Z_PROJECT_REPO_$i" "$typed_repo"
+        update_config_ $i "Z_PROJECT_REPO" "$typed_repo"
         Z_PROJECT_REPO[$i]="$typed_repo"
       else
         Z_CURRENT_PROJECT_REPO="$typed_repo"
@@ -1631,7 +1637,7 @@ function save_pkg_manager_() {
     check_prj_pkg_manager_ $i "$choose_pkg"
     if (( $? == 0 )); then
       if (( i > 0 )); then
-        update_config_ "Z_PACKAGE_MANAGER_$i" "$choose_pkg"
+        update_config_ $i "Z_PACKAGE_MANAGER" "$choose_pkg"
         Z_PACKAGE_MANAGER[$i]="$choose_pkg"
       else
         Z_CURRENT_PACKAGE_MANAGER="$choose_pkg"
@@ -1804,32 +1810,32 @@ function remove_prj_() {
   Z_DEFAULT_BRANCH[$i]=""
   Z_PRINT_README[$i]=""
 
-  update_config_ "Z_PROJECT_SHORT_NAME_$i" ""
-  update_config_ "Z_PROJECT_FOLDER_$i" "" >/dev/null
-  update_config_ "Z_PROJECT_REPO_$i" "" >/dev/null
-  update_config_ "Z_PACKAGE_MANAGER_$i" "" >/dev/null
-  update_config_ "Z_CODE_EDITOR_$i" "" >/dev/null
-  update_config_ "Z_CLONE_$i" "" >/dev/null
-  update_config_ "Z_SETUP_$i" "" >/dev/null
-  update_config_ "Z_RUN_$i" "" >/dev/null
-  update_config_ "Z_RUN_STAGE_$i" "" >/dev/null
-  update_config_ "Z_RUN_PROD_$i" "" >/dev/null
-  update_config_ "Z_PRO_$i" "" >/dev/null
-  update_config_ "Z_TEST_$i" "" >/dev/null
-  update_config_ "Z_COV_$i" "" >/dev/null
-  update_config_ "Z_TEST_WATCH_$i" "" >/dev/null
-  update_config_ "Z_E2E_$i" "" >/dev/null
-  update_config_ "Z_E2EUI_$i" "" >/dev/null
-  update_config_ "Z_PR_TEMPLATE_$i" "" >/dev/null
-  update_config_ "Z_PR_REPLACE_$i" "" >/dev/null
-  update_config_ "Z_PR_APPEND_$i" "" >/dev/null
-  update_config_ "Z_PR_RUN_TEST_$i" "" >/dev/null
-  update_config_ "Z_GHA_INTERVAL_$i" "" >/dev/null
-  update_config_ "Z_COMMIT_ADD_$i" "" >/dev/null
-  update_config_ "Z_GHA_WORKFLOW_$i" "" >/dev/null
-  update_config_ "Z_CURRENT_PUSH_ON_REFIX_$i" "" >/dev/null
-  update_config_ "Z_DEFAULT_BRANCH_$i" "" >/dev/null
-  update_config_ "Z_PRINT_README_$i" "" >/dev/null
+  update_config_ $i "Z_PROJECT_SHORT_NAME" ""
+  update_config_ $i "Z_PROJECT_FOLDER" "" >/dev/null
+  update_config_ $i "Z_PROJECT_REPO" "" >/dev/null
+  update_config_ $i "Z_PACKAGE_MANAGER" "" >/dev/null
+  update_config_ $i "Z_CODE_EDITOR" "" >/dev/null
+  update_config_ $i "Z_CLONE" "" >/dev/null
+  update_config_ $i "Z_SETUP" "" >/dev/null
+  update_config_ $i "Z_RUN" "" >/dev/null
+  update_config_ $i "Z_RUN_STAGE" "" >/dev/null
+  update_config_ $i "Z_RUN_PROD" "" >/dev/null
+  update_config_ $i "Z_PRO" "" >/dev/null
+  update_config_ $i "Z_TEST" "" >/dev/null
+  update_config_ $i "Z_COV" "" >/dev/null
+  update_config_ $i "Z_TEST_WATCH" "" >/dev/null
+  update_config_ $i "Z_E2E" "" >/dev/null
+  update_config_ $i "Z_E2EUI" "" >/dev/null
+  update_config_ $i "Z_PR_TEMPLATE" "" >/dev/null
+  update_config_ $i "Z_PR_REPLACE" "" >/dev/null
+  update_config_ $i "Z_PR_APPEND" "" >/dev/null
+  update_config_ $i "Z_PR_RUN_TEST" "" >/dev/null
+  update_config_ $i "Z_GHA_INTERVAL" "" >/dev/null
+  update_config_ $i "Z_COMMIT_ADD" "" >/dev/null
+  update_config_ $i "Z_GHA_WORKFLOW" "" >/dev/null
+  update_config_ $i "Z_CURRENT_PUSH_ON_REFIX" "" >/dev/null
+  update_config_ $i "Z_DEFAULT_BRANCH" "" >/dev/null
+  update_config_ $i "Z_PRINT_README" "" >/dev/null
 }
 
 function clear_curr_prj_() {
@@ -2339,7 +2345,7 @@ function refix() {
     if confirm_from_ "save this preference and don't ask again?"; then
       for i in {1..9}; do
         if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          update_config_ "Z_PUSH_ON_REFIX_${i}" 1
+          update_config_ $i "Z_PUSH_ON_REFIX" 1
           Z_CURRENT_PUSH_ON_REFIX=1
           break
         fi
@@ -2828,7 +2834,7 @@ function pr() {
       if confirm_from_ "save this preference and don't ask again?"; then
         for i in {1..9}; do
           if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-            update_config_ "Z_PR_RUN_TEST_${i}" 1
+            update_config_ $i "Z_PR_RUN_TEST" 1
             Z_CURRENT_PR_RUN_TEST=1
             break
           fi
@@ -3655,7 +3661,7 @@ function clone() {
     if confirm_from_ "save '$default_branch' as the default branch for $proj_arg and don't ask again?"; then
       for i in {1..9}; do
         if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          update_config_ "Z_DEFAULT_BRANCH_${i}" "$default_branch"
+          update_config_ $i "Z_DEFAULT_BRANCH" "$default_branch"
           Z_DEFAULT_BRANCH[$i]="$default_branch"
           break
         fi
@@ -3976,7 +3982,7 @@ function recommit() {
         if confirm_from_ "save this preference and don't ask again?"; then
           for i in {1..9}; do
             if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-              update_config_ "Z_COMMIT_ADD_${i}" 1
+              update_config_ $i "Z_COMMIT_ADD" 1
               Z_CURRENT_COMMIT_ADD=1
               break
             fi
@@ -4031,7 +4037,7 @@ function commit() {
         if confirm_from_ "save this preference and don't ask again?"; then
           for i in {1..9}; do
             if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-              update_config_ "Z_COMMIT_ADD_${i}" 1
+              update_config_ $i "Z_COMMIT_ADD" 1
               Z_CURRENT_COMMIT_ADD=1
               break
             fi
@@ -4174,20 +4180,20 @@ function push() {
   local my_branch=$(git branch --show-current)
 
   if (( push_is_t && push_is_f )); then
-    exec_ "git push --no-verify --tags --force $@"
+    git push --no-verify --tags --force $@
   elif (( push_is_t )); then
-    exec_ "git push --no-verify --tags $@"
+    git push --no-verify --tags $@
   elif (( push_is_f && push_is_l )); then
-    exec_ "git push --no-verify --force-with-lease --set-upstream origin $my_branch $@"
+    git push --no-verify --force-with-lease --set-upstream origin $my_branch $@
   elif (( push_is_f )); then
-    exec_ "git push --no-verify --force --set-upstream origin $my_branch $@"
+    git push --no-verify --force --set-upstream origin $my_branch $@
   else
-    exec_ "git push --no-verify --set-upstream origin $my_branch $@"
+    git push --no-verify --set-upstream origin $my_branch $@
   fi
 
   if (( ! $? && ! push_is_t )); then
     print ""
-    exec_ "git log -1 --pretty=format:'%H %s' | xargs -0"
+    git log -1 --pretty=format:'%H %s' | xargs -0
   fi
 }
 
@@ -4203,14 +4209,14 @@ function pushf() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   if (( is_t )); then
-    exec_ "git push --no-verify --tags --force $@"
+    git push --no-verify --tags --force $@
   else
-    exec_ "git push --no-verify --force $@"
+    git push --no-verify --force $@
   fi
 
   if (( $? == 0 && ! is_t && ! is_q )); then
     print ""
-    exec_ "git log -1 --pretty=format:'%H %s' | xargs -0"
+    git log -1 --pretty=format:'%H %s' | xargs -0
   fi
 }
 
@@ -4226,11 +4232,11 @@ function stash() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   if [[ -z "$1" ]]; then
-    exec_ "git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)" ${@:2}"
+    git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)" ${@:2}
     return 0;
   fi
 
-  exec_ "git stash push --include-untracked --message $@"
+  git stash push --include-untracked --message $@
 }
 
 function dtag() {
@@ -4252,14 +4258,14 @@ function dtag() {
   
   fetch --quiet
 
-  exec_ "git tag -d "$1" ${@:2}"
+  git tag -d "$1" ${@:2}
 
   if (( $? != 0 )); then
     cd "$_pwd"
     return 1;
   fi
 
-  exec_ "git push origin --delete "$1" ${@:2}"
+  git push origin --delete "$1" ${@:2}
 
   cd "$_pwd"
 }
@@ -4292,14 +4298,14 @@ function pull() {
   fi
 
   if (( pull_is_t )); then
-    exec_ "git pull origin --tags $@"
+    git pull origin --tags $@
   else
-    exec_ "git pull origin $@"
+    git pull origin $@
   fi
 
   if (( ! $? && ! pull_is_t && ! pull_is_q )); then
     print ""
-    exec_ "git log -1 --pretty=format:'%H %s' | xargs -0"
+    git log -1 --pretty=format:'%H %s' | xargs -0
   fi
 }
 
@@ -4322,9 +4328,9 @@ function tag() {
   
   prune &>/dev/null
 
-  exec_ "git tag --annotate "$1" --message "$1" ${@:2}"
+  git tag --annotate "$1" --message "$1" ${@:2}
   if (( $? == 0 )); then
-    exec_ "git push --no-verify --tags"
+    git push --no-verify --tags
   fi
 
   cd "$_pwd"
@@ -4381,7 +4387,7 @@ function restore() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  exec_ "git restore -q ."
+  git restore -q .
 }
 
 function clean() {
@@ -4394,7 +4400,7 @@ function clean() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
   
-  exec_ "git clean -fd -q"
+  git clean -fd -q
   restore
 }
 
@@ -4408,7 +4414,7 @@ function discard() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  exec_ "git reset --hard"
+  git reset --hard
   clean
 }
 
@@ -4426,9 +4432,9 @@ function reseta() {
   local remote_branch=$(git ls-remote --heads origin "$(git branch --show-current)")
 
   if [[ -n "$remote_branch" ]]; then
-    exec_ "git reset --hard origin/"$(git branch --show-current)""
+    git reset --hard origin/"$(git branch --show-current)"
   else
-    exec_ "git reset --hard"
+    git reset --hard
   fi
 
   clean
@@ -4670,9 +4676,10 @@ function select_pr_() {
   return 0;
 }
 
-function gha_auto_() {
-  local wk_proj_folder="$1"
-  local workflow="$2"
+function gha_() {
+  local workflow="$1"
+
+  print_debug_ "gha_ : workflow=$workflow"
 
   if [[ -z "$workflow" ]]; then
     print " no workflow name provided" >&2
@@ -4681,29 +4688,20 @@ function gha_auto_() {
     return 1;
   fi
 
-  local _pwd="$(PWD)";
+  print_debug_ "gh run list --workflow="${workflow}" --limit 1 --json databaseId --jq '.[0].databaseId'"
 
-  if [[ -n "$wk_proj_folder" ]]; then
-    check_git_ "$wk_proj_folder";
-    if (( $? != 0 )); then return 1; fi
-    
-    cd "$wk_proj_folder"
-  fi
-
-  print_debug_ "gh run list --workflow $workflow --limit 1 --json databaseId --jq '.[0].databaseId'"
-
-  local workflow_id="$(gh run list --workflow "$workflow" --limit 1 --json databaseId --jq '.[0].databaseId' &>/dev/null)"
+  local workflow_id="$(gh run list --workflow="${workflow}" --limit 1 --json databaseId --jq '.[0].databaseId')"
 
   if [[ -z "$workflow_id" ]]; then
     print "⚠️${yellow_cor} workflow not found ${reset_cor}" >&2
     return 1;
   fi
 
-  local workflow_status="$(gh run list --workflow "$workflow" --limit 1 --json conclusion --jq '.[0].conclusion' &>/dev/null)"
+  local workflow_status="$(gh run list --workflow="${workflow}" --limit 1 --json conclusion --jq '.[0].conclusion')"
 
   if [[ -z "$workflow_status" ]]; then
     print " ⏳\e[90m workflow is still running ${reset_cor}" >&2
-    return 1;
+    return 0; # this nust be zero for auto mode
   fi
 
   # Output status with emoji
@@ -4730,10 +4728,9 @@ function gha_auto_() {
       extracted_repo="${extracted_repo%.git}"
       print "  check out${blue_cor} https://github.com/$extracted_repo/actions/runs/$workflow_id ${reset_cor}"
     fi
-    return 0;
   fi
-
-  cd "$_pwd"
+  
+  return 0;
 }
 
 function gha() {
@@ -4741,8 +4738,8 @@ function gha() {
 
   if (( gha_is_h )); then
     print "${yellow_cor} gha${solid_yellow_cor} [<workflow>]${reset_cor} : to check status of workflow in current project"
-    print "${yellow_cor} gha -a${reset_cor} : to run in auto mode"
     print "${yellow_cor} gha <pro>${solid_yellow_cor} [<workflow>]${reset_cor} : to check status of a workflow for a project"
+    print "${yellow_cor} gha -a${reset_cor} : to run in auto mode"
     return 0;
   fi
 
@@ -4754,138 +4751,105 @@ function gha() {
 
   local workflow_arg=""
   local proj_arg=""
-  local _mode=""
 
   # Parse arguments
-  if [[ -n "$3" ]]; then
-    if [[ "$1" == "-a" ]]; then
-      _mode="$1"
-      proj_arg="$2"
-      workflow_arg="$3"
-    elif [[ "$3" == "-a" ]]; then
-      proj_arg="$1"
+  if [[ -n "$2" ]]; then
+    for i in {1..9}; do
+      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        proj_arg="$1"
+        break
+      fi
+    done
+    if [[ -n "$proj_arg" ]]; then
       workflow_arg="$2"
-      _mode="$3"
-    else
-      print " invalid arguments" >&2
-      print " ${yellow_cor} gha -h${reset_cor} to see usage" >&2
-      return 1;
-    fi
-  elif [[ -n "$2" ]]; then
-    if [[ "$2" == "-a" ]]; then
-      _mode="$2"
-      for i in {1..9}; do
-        if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          proj_arg="$1"
-          break
-        fi
-      done
-      [[ -z "$proj_arg" ]] && workflow_arg="$1"
-    elif [[ "$1" == "-a" ]]; then
-      _mode="$1"
-      for i in {1..9}; do
-        if [[ "$2" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          proj_arg="$2"
-          break
-        fi
-      done
-      [[ -z "$proj_arg" ]] && workflow_arg="$2"
-    else
-      for i in {1..9}; do
-        if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          proj_arg="$1"
-          break
-        fi
-      done
-      [[ -z "$proj_arg" ]] && workflow_arg="$2"
     fi
   elif [[ -n "$1" ]]; then
-    if [[ "$1" == "-a" ]]; then
-      _mode="$1"
-    else
-      for i in {1..9}; do
-        if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          proj_arg="$1"
-          break
-        fi
-      done
-      [[ -z "$proj_arg" ]] && workflow_arg="$1"
+    for i in {1..9}; do
+      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        proj_arg="$1"
+        break
+      fi
+    done
+    if [[ -z "$proj_arg" ]]; then
+      workflow_arg="$1"
+      proj_arg="$Z_CURRENT_PROJECT_SHORT_NAME"
     fi
+  else
+    proj_arg="$Z_CURRENT_PROJECT_SHORT_NAME"
   fi
+
+  print_debug_ "gha - proj_arg: $proj_arg"
 
   local proj_folder="$(PWD)"  # default is current folder
   local gha_interval=""
   local gha_workflow=""
 
-  # Set project parameters
-  if [[ -n "$proj_arg" ]]; then
-    found=0
-    for i in {1..9}; do
-      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-        found=1
-        proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
-        if [ -z "$proj_folder" ]; then return 1; fi
+  for i in {1..9}; do
+    if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
+      if [ -z "$proj_folder" ]; then return 1; fi
 
-        gha_interval="${Z_GHA_INTERVAL[$i]}"
-        gha_workflow="${Z_GHA_WORKFLOW[$i]}"
-        break
-      fi
-    done
-
-    if [[ $found -ne 1 ]]; then
-      print " invalid project name: $proj_arg" >&2
-      print " ${yellow_cor} gha -h${reset_cor} to see usage" >&2
-      return 1;
+      gha_interval="${Z_GHA_INTERVAL[$i]}"
+      gha_workflow="${Z_GHA_WORKFLOW[$i]}"
+      break
     fi
-  fi
+  done
 
   local _pwd="$(PWD)";
 
+  print_debug_ "gha - proj_folder: $proj_folder"
+
   if [[ -n "$proj_folder" ]]; then
     open_prj_for_git_ "$proj_folder"
-    if (( $? != 0 )); then return 1; fi
+    if (( $? != 0 )); then
+      cd "$_pwd"
+      return 1;
+    fi
     proj_folder="$(PWD)";
   else
     print " no project folder found" >&2
+    cd "$_pwd"
     return 1;
   fi
 
+  print_debug_ "gha - pwd: $(PWD)"
+
+  local ask_save=0
+
   if [[ -z "$workflow_arg" && -z "$gha_workflow" ]]; then
-    chosen_workflow=""
-    workflow_choices=$(gh workflow list | cut -f1)
+    local workflow_choices=$(gh workflow list | cut -f1)
     if [[ -z "$workflow_choices" || "$workflow_choices" == "No workflows found" ]]; then
       cd "$_pwd"
       print " no workflows found" >&2
       return 1;
     fi
     
-    chosen_workflow=$(gh workflow list | cut -f1 | gum choose --header " choose workflow:");
-    if [[ $? -ne 0 || -z "$chosen_workflow" ]]; then
+    local chosen_workflow=$(gh workflow list | cut -f1 | gum choose --header " choose workflow:");
+    if [[ -z "$chosen_workflow" ]]; then
       cd "$_pwd"
       return 1;
     fi
 
-    # ask to save the workflow
-    if [[ -n "$proj_arg" ]]; then
-      if confirm_from_ "would you like to save '$chosen_workflow' as the default workflow for this project?"; then
-        for i in {1..9}; do
-          if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-            Z_GHA_WORKFLOW[$i]="$chosen_workflow"
-            update_config_ "Z_GHA_WORKFLOW_$i" "$chosen_workflow"
-            break
-          fi
-        done
-        print ""
-      fi
-    fi
-
-    gha_workflow="$chosen_workflow"
-
+    workflow_arg="$chosen_workflow"
+    ask_save=1
   elif [[ -n "$workflow_arg" ]]; then
-    gha_workflow="$workflow_arg"
+    ask_save=1
+  elif [[ -n "$gha_workflow" ]]; then
+    workflow_arg="$gha_workflow"
+    ask_save=0    
   fi
 
-  if [[ "$_mode" == "-a" ]]; then
+  if [[ -z "$workflow_arg" ]]; then
+    print " no workflow name provided" >&2
+    print " ${yellow_cor} gha -h${reset_cor} to see usage" >&2
+    return 1;
+  fi
+
+  if (( ! gha_is_a )); then
+    print " checking workflow${purple_cor} $workflow_arg${reset_cor}..."
+    gha_ "$workflow_arg"
+    RET=$?
+  else
     if [[ -z "$gha_interval" ]]; then
       gha_interval=10
     fi
@@ -4894,10 +4858,11 @@ function gha() {
     print ""
 
     while true; do
-      print " checking workflow${purple_cor} $gha_workflow${reset_cor}..."
-  
-      gha_auto_ "$proj_folder" "$gha_workflow"
-      
+      print " checking workflow${purple_cor} $workflow_arg${reset_cor}..."
+
+      gha_ "$workflow_arg"
+      RET=$?
+
       if (( $? != 0 )); then
         return 1;
       fi
@@ -4907,10 +4872,19 @@ function gha() {
       sleep $(($gha_interval * 60))
     done
   fi
-  
-  print " checking workflow${purple_cor} $gha_workflow${reset_cor}..."
 
-  gha_auto_ "$proj_folder" "$gha_workflow"
+  if (( RET == 0 && ask_save )); then
+    # ask to save the workflow
+    if confirm_from_ "would you like to save \"$workflow_arg\" as the default workflow for this project?"; then
+      for i in {1..9}; do
+        if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+          Z_GHA_WORKFLOW[$i]="$workflow_arg"
+          update_config_ $i "Z_GHA_WORKFLOW" "\"$workflow_arg\""
+          break
+        fi
+      done
+    fi
+  fi
 }
 
 function co() {
@@ -5007,7 +4981,7 @@ function co() {
 
     fetch --quiet
 
-    exec_ "git checkout -b "$branch" "$base_branch""
+    git checkout -b "$branch" "$base_branch"
 
     if (( $? == 0 )); then
       ll_add_node_ "" "$(PWD)" "$base_branch"
@@ -5015,9 +4989,9 @@ function co() {
       local remote_branch=$(git ls-remote --heads origin "$base_branch" | awk '{print $2}')
 
       if [[ -n "$remote_branch" ]]; then
-        exec_ "git config branch."$branch".gh-merge-base "$remote_branch""
+        git config branch."$branch".gh-merge-base "$remote_branch"
       else
-        exec_ "git config branch."$branch".gh-merge-base "$base_branch""
+        git config branch."$branch".gh-merge-base "$base_branch"
       fi
       return 0;
     fi
@@ -5045,7 +5019,7 @@ function co() {
     local current_branch="$(git branch --show-current)"
     local _past_folder="$(PWD)"
 
-    exec_ "git switch "$branch" --quiet"
+    git switch "$branch" --quiet
 
     if (( $? == 0 )); then
       if (( ! co_is_x )); then
@@ -5098,14 +5072,14 @@ function co() {
 
   fetch --quiet
 
-  exec_ "git switch "$base_branch" --quiet"
+  git switch "$base_branch" --quiet
   if (( $? != 0 )); then return 1; fi
 
   pull --quiet
-  exec_ "git branch "$branch" "$base_branch"" # create branch
+  git branch "$branch" "$base_branch" # create branch
   if (( $? != 0 )); then return 1; fi
 
-  exec_ "git switch "$branch""
+  git switch "$branch"
   if (( $? != 0 )); then return 1; fi
 
   ll_add_node_ "" "$(PWD)" "$current_branch"
@@ -5113,9 +5087,9 @@ function co() {
   local remote_branch=$(git ls-remote --heads origin "$base_branch" | awk '{print $2}')
 
   if [[ -n "$remote_branch" ]]; then
-    exec_ "git config branch."$branch".gh-merge-base "$remote_branch""
+    git config branch."$branch".gh-merge-base "$remote_branch"
   else
-    exec_ "git config branch."$branch".gh-merge-base "$base_branch""
+    git config branch."$branch".gh-merge-base "$base_branch"
   fi
 }
 
@@ -5608,7 +5582,7 @@ function load_config_entry_() {
         Z_DEFAULT_BRANCH[$i]="$value"
         ;;
       Z_GHA_WORKFLOW)
-        Z_GHA_WORKFLOW[$i]="$value"
+        Z_GHA_WORKFLOW[$i]=$(echo "$value" | tr -d '"')
         ;;
       Z_PUSH_ON_REFIX)
         Z_PUSH_ON_REFIX[$i]="$value"
@@ -5778,16 +5752,13 @@ function z_project_handler_() { # pump() project()
   fi
 
   if [[ -n "$folder_arg" ]]; then
-    print_debug_ "z_project_handler_: checking folder: "${proj_folder}/${folder_arg}""
-    print_debug_ "z_project_handler_: checking proj_folder: [$proj_folder]"
-    print_debug_ "z_project_handler_: checking folder_arg: [$folder_arg]"
     if [[ -d "${proj_folder}/${folder_arg}" ]]; then
-      $folder_arg="${proj_folder}/${folder_arg}"
+      folder_arg="${proj_folder}/${folder_arg}"
     else
-      $folder_arg="$proj_folder"
+      folder_arg="$proj_folder"
     fi
   else
-    $folder_arg="$proj_folder"
+    folder_arg="$proj_folder"
   fi
 
   # now open branch
