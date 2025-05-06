@@ -494,7 +494,11 @@ function choose_auto_one_() {
   local reset=$'\e[0m'
 
   if command -v gum &>/dev/null; then
-    echo "$(gum choose --limit=1 --select-if-one --height 20 --header="${purple} $1:${reset}" ${@:2})"
+    local choice="$(gum choose --limit=1 --select-if-one --height 20 --header="${purple} $1:${reset}" ${@:2} | xargs)"
+    if [[ -z "$choice" ]]; then
+      return 1;
+    fi
+    echo "$choice"
     return 0;
   fi
   
@@ -2386,7 +2390,7 @@ function covc() {
   fi 
 
   local proj_name="${Z_PROJECT_SHORT_NAME[$i]}"
-  local proj_folder="$(get_prj_folder_ "$Z_PROJECT_FOLDER[$i]")"
+  local proj_folder="$(get_prj_folder_ $i "$Z_PROJECT_FOLDER[$i]")"
   local _setup="$Z_SETUP[$i]"
   local _clone="$Z_SETUP[$i]"
   local _cov="$Z_COV[$i]"
@@ -2395,6 +2399,8 @@ function covc() {
     print " Z_COV or Z_SETUP is missing for ${blue_cor}${proj_name}${reset_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${reset_cor}" >&2
     return 1;
   fi
+
+  print_debug_ "covc proj_folder: i: $i - proj_folder: $proj_folder proj_name: $proj_name"
 
   local branch="$1"
 
@@ -2437,7 +2443,7 @@ function covc() {
     git switch "$branch" --quiet &>/dev/null
     RET=$?
   else
-    local proj_repo="$(get_prj_repo_ "$Z_PROJECT_REPO[$i]")"
+    local proj_repo="$(get_prj_repo_ $i "$Z_PROJECT_REPO[$i]")"
     if [[ -z "$proj_repo" ]]; then
       return 1;
     fi
@@ -4237,12 +4243,12 @@ function dtag() {
 
 function print_debug_() {
   if (( is_d )); then
-    print "debug: $1" >&2
+    print -r -- "debug: $1" >&2
   fi
 }
 
 function exec_() {
-  print_debug_ "$1"
+  print -r -- "$1" >&2
   if (( is_d )); then
     return 0;
   fi
@@ -5697,12 +5703,12 @@ function z_project_handler_() { # pump() project()
     return 0;
   fi
 
-  print_debug_ "$short_name(): is_single_mode: $is_single_mode, proj_folder: $proj_folder"
+  print_debug_ "z_project_handler_: is_single_mode: $is_single_mode, proj_folder: $proj_folder"
 
   local folder_arg=""
   local branch_arg=""
 
-  print_debug_ "$short_name(): \$1: $1, \$2: $2, \$3: $3"
+  print_debug_ "z_project_handler_: \$1: $1, \$2: $2, \$3: $3"
 
   if [[ -n "$2" ]]; then
     branch_arg="$2"
@@ -5724,6 +5730,7 @@ function z_project_handler_() { # pump() project()
 
       if [[ -n "${folders[*]}" ]]; then
         folder_arg=($(choose_auto_one_ "choose work folder" "${folders[@]}"))
+        print_debug_ "z_project_handler_: chosen folder_arg: $folder_arg"
         if [[ -z "$folder_arg" ]]; then
           return 1;
         fi
@@ -5732,6 +5739,9 @@ function z_project_handler_() { # pump() project()
   fi
 
   if [[ -n "$folder_arg" ]]; then
+    print_debug_ "z_project_handler_: checking folder: $proj_folder/$folder_arg"
+    print_debug_ "z_project_handler_: checking proj_folder: [$proj_folder]"
+    print_debug_ "z_project_handler_: checking folder_arg: [$folder_arg]"
     if [[ -d "$proj_folder/$folder_arg" ]]; then
       $folder_arg="$proj_folder/$folder_arg"
     else
@@ -5763,7 +5773,7 @@ function z_project_handler_() { # pump() project()
   #   branch="$3"
   # fi
 
-  print_debug_ "$short_name(): folder_path: $folder_path, branch: $branch, is_single_mode: $is_single_mode, is_working_branch: $is_working_branch"
+  print_debug_ "z_project_handler_: folder_arg: $folder_arg, branch: $branch, is_single_mode: $is_single_mode, is_working_branch: $is_working_branch"
 
   # if [[ -n "$folder_path" ]]; then
   #   if (( is_working_branch )); then
