@@ -4,8 +4,7 @@
 set -e
 setopt extended_glob
 
-DEST_DIR="$HOME/.oh-my-zsh/plugins/pump"
-DEST_DIR_CONFIG="$DEST_DIR/config"
+DEST_DIR_CONFIG="$HOME/.oh-my-zsh/plugins/pump/config"
 DEST_CONFIG="$DEST_DIR_CONFIG/pump.zshenv"
 BACKUP_SUFFIX="bak"
 #$(date +%Y%m%d%H%M%S)"
@@ -15,9 +14,11 @@ if [[ ! -f "$DEST_CONFIG" ]]; then
   #echo " 📦 copying configuration file..."
 
   mkdir -p "$DEST_DIR_CONFIG"
-  cp -R "$SRC_CONFIG" "$DEST_CONFIG"
+  yes | cp -Rf "$SRC_CONFIG" "$DEST_CONFIG"
   exit 0
 fi
+
+yes | cp -Rf "$SRC_CONFIG" "$DEST_CONFIG.default"
 
 #echo " 🔄 merging configuration... $DEST_CONFIG"
 
@@ -57,7 +58,7 @@ fi
 
 # VERSION=$(curl -s $RELEASE_API | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 VERSION=$(awk -F'"' '/"version"/ {print $4}' package.json)
-cp "$DEST_CONFIG" "${DEST_CONFIG}.$VERSION.$BACKUP_SUFFIX"
+yes | cp -rf "$DEST_CONFIG" "${DEST_CONFIG}.$VERSION.$BACKUP_SUFFIX"
 #echo " 📋 backup created: ${DEST_CONFIG}.$VERSION.$BACKUP_SUFFIX"
 
 # Create associative arrays for lookups
