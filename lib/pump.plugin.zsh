@@ -426,20 +426,13 @@ function input_from_() {
   echo "$_input"
 }
 
-function choose_multiple_branches_() {
-  local header="$1"
-  local choices=$(echo "$2" | tr ' ' '\n')
-
-  echo "$(choose_multiple_ $header $choices ${@:3})"
-}
-
 function choose_multiple_() {
   local purple=$'\e[38;5;99m'
   local cor=$'\e[38;2;167;139;250m'
   local reset=$'\e[0m'
 
   if command -v gum &>/dev/null; then
-    echo "$(gum choose --no-limit --height 20 --header="${purple} $1 ${cor}(use spacebar)${purple}:${reset}" ${@:2})"
+    echo "$(gum choose --no-limit --height 20 --header="${purple} $1 ${cor}(use spacebar)${purple}:${reset}" "${@:2}")"
     return 0;
   fi
 
@@ -462,7 +455,7 @@ function choose_one_() {
   local reset=$'\e[0m'
 
   if command -v gum &>/dev/null; then
-    echo "$(gum choose --limit=1 --height="$2" --header="${purple} $1:${reset}" ${@:3})"
+    echo "$(gum choose --limit=1 --height="$2" --header="${purple} $1:${reset}" "${@:3}")"
     return 0;
   fi
   
@@ -483,9 +476,9 @@ function choose_one_() {
 function choose_auto_one_by_filtering_() {
   if command -v gum &>/dev/null; then
     print "${purple_cor} $1: ${reset_cor}" >&2
-    echo "$(gum filter --height 20 --limit 1 --indicator=">" --placeholder=" $2:" ${@:3})"
+    echo "$(gum filter --height 20 --limit 1 --indicator=">" --placeholder=" $2" "${@:3}")"
   else
-    choose_auto_one_ ${@:2}
+    choose_auto_one_ "$2" "$3"
   fi
 }
 
@@ -494,7 +487,7 @@ function choose_auto_one_() {
   local reset=$'\e[0m'
 
   if command -v gum &>/dev/null; then
-    local choice="$(gum choose --limit=1 --select-if-one --height 20 --header="${purple} $1:${reset}" ${@:2} | xargs)"
+    local choice="$(gum choose --limit=1 --select-if-one --height 20 --header="${purple} $1:${reset}" "${@:2}")"
     if [[ -z "$choice" ]]; then
       return 1;
     fi
@@ -615,7 +608,7 @@ function del() {
     for f in $files; do
       if (( ! del_is_s && _count < 3 )); then
         confirm_from_ "delete "$'\e[94m'$f$'\e[0m'"?"
-        local RET=$?
+        RET=$?
         if (( RET == 130 )); then
           break;
         elif (( RET == 1 )); then
@@ -1208,10 +1201,10 @@ function help() {
   print " ${solid_cyan_cor} chp ${reset_cor}\t\t = cherry-pick commit"
   print " ${solid_cyan_cor} conti ${reset_cor}\t = continue rebase/merge/chp"
   print " ${solid_cyan_cor} mc ${reset_cor}\t\t = continue merge"
-  print " ${solid_cyan_cor} merge ${reset_cor}\t = merge from $(git config --get init.defaultBranch) branch"
+  print " ${solid_cyan_cor} merge ${reset_cor}\t = merge from $(git config --get init.defaultBranch)"
   print " ${solid_cyan_cor} merge <b> ${reset_cor}\t = merge from branch"
   print " ${solid_cyan_cor} rc ${reset_cor}\t\t = continue rebase"
-  print " ${solid_cyan_cor} rebase ${reset_cor}\t = rebase from $(git config --get init.defaultBranch) branch"
+  print " ${solid_cyan_cor} rebase ${reset_cor}\t = rebase from $(git config --get init.defaultBranch)"
   print " ${solid_cyan_cor} rebase <b> ${reset_cor}\t = rebase from branch"
 
   pause_output  # Wait for user input to continue
@@ -3766,6 +3759,10 @@ function renb() {
   fi
 
   check_git_; if (( $? != 0 )); then return 1; fi
+
+  local old_name=$(git branch --show-current)
+
+  git config branch."$1".gh-merge-base "$(git config --get branch."$old_name".gh-merge-base)" &>/dev/null
   
   git branch -m "$@"
 }
@@ -4117,10 +4114,22 @@ function fetch() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   if [[ -n "$1" ]]; then
-    exec_ "git fetch origin $1 --tags --prune-tags --prune ${@:2}"
+    git fetch origin "$1" --tags --prune-tags --prune "${@:2}"
   else
-    exec_ "git fetch origin --tags --prune-tags --prune $@"
+    git fetch origin --tags --prune-tags --prune "$@"
   fi
+
+  local current_branches=$(git branch --format '%(refname:short)')
+
+  for config in $(git config --get-regexp "^branch\." | awk '{print $1}'); do
+    local branch_name="${config#branch.}"
+
+    if ! echo "$current_branches" | grep -q "^$branch_name$"; then
+      git config --remove-section "branch."$branch_name"" &>/dev/null
+    fi
+  done
+
+  return 0
 }
 
 function gconf() {
@@ -4257,12 +4266,13 @@ function dtag() {
 
 function print_debug_() {
   if (( is_d )); then
-    print -r -- "debug: $1" >&2
+    print "debug: $1" >&2
   fi
 }
 
 function exec_() {
-  print -r -- "$1" >&2
+  print_debug_ "$1" >&2
+
   if (( is_d )); then
     return 0;
   fi
@@ -4416,7 +4426,7 @@ function reseta() {
   local remote_branch=$(git ls-remote --heads origin "$(git branch --show-current)")
 
   if [[ -n "$remote_branch" ]]; then
-    exec_ "git reset --hard origin/$(git branch --show-current)"
+    exec_ "git reset --hard origin/"$(git branch --show-current)""
   else
     exec_ "git reset --hard"
   fi
@@ -4587,23 +4597,37 @@ function shorten_path_() {
 
 # select_branch_ -a <search_text>
 function select_branch_() {
+  local multiple=${3:-0}
+
   # $1 are flag options
   # $2 is the search string
-  local branch_choices=$(git branch $1 --format="%(refname:strip=2)" | grep -i "$2" | sed 's/^[* ]*//g' | sed -e 's/HEAD//' | sed -e 's/remotes\///' | sed -e 's/HEAD -> origin\///' | sed -e 's/origin\///' | sort -fu | tr ' ' '\n')
+  print_debug_ "select_branch_ : git branch $1 | grep -i "$2""
+
+  local branch_choices=$(git branch $1 --format="%(refname:strip=2)" | grep -i "$2" | sed -e 's/^[* ]*//g' | sed -e 's/HEAD//' | sed -e 's/remotes\///' | sed -e 's/HEAD -> origin\///' | sed -e 's/origin\///' | sort -fu)
   
   if [[ -z "$branch_choices" ]]; then
     print " did not match any branch known to git: $2" >&2
     return 1;
   fi
 
-  local branch_choices_count=$(echo "$branch_choices" | wc -l)
+  #$branch_choices=$(echo "$branch_choices" | sed -e 's/^[* ]*//g' | sed -e 's/HEAD//' | sed -e 's/remotes\///' | sed -e 's/HEAD -> origin\///' | sed -e 's/origin\///' | sort -fu)
+
   local select_branch_choice=""
 
-  if [ $branch_choices_count -gt 20 ]; then
-    select_branch_choice=$(choose_auto_one_by_filtering_ "choose a branch" "type branch name" "$branch_choices" ${@:3})
+  if (( multiple )); then
+    select_branch_choice=$(choose_multiple_ "choose branches" $(echo "$branch_choices" | tr ' ' '\n'))
   else
-    select_branch_choice=$(choose_auto_one_ "choose a branch" "$branch_choices" ${@:3})
+    local branch_choices_count=$(echo "$branch_choices" | wc -l)
+    print_debug_ "select_branch_ : branch_choices_count=$branch_choices_count"
+  # $(echo "$branch_choices" | tr ' ' '\n')
+    if [ $branch_choices_count -gt 20 ]; then
+      select_branch_choice=$(choose_auto_one_by_filtering_ "choose a branch" "type branch name" $(echo "$branch_choices" | tr ' ' '\n'))
+    else
+      select_branch_choice=$(choose_auto_one_ "choose a branch" $(echo "$branch_choices" | tr ' ' '\n'))
+    fi
   fi
+
+  print_debug_ "select_branch_ : select_branch_choice=[$select_branch_choice]"
 
   echo "$select_branch_choice"
 }
@@ -4665,6 +4689,8 @@ function gha_auto_() {
     
     cd "$wk_proj_folder"
   fi
+
+  print_debug_ "gh run list --workflow $workflow --limit 1 --json databaseId --jq '.[0].databaseId'"
 
   local workflow_id="$(gh run list --workflow "$workflow" --limit 1 --json databaseId --jq '.[0].databaseId' &>/dev/null)"
 
@@ -4898,7 +4924,7 @@ function co() {
     print " --"
     print "${yellow_cor} co <branch>${reset_cor} : to switch to an existing branch"
     print "${yellow_cor} co -e <branch>${reset_cor} : to switch to exact branch"
-    print "${yellow_cor} co -b <branch>${reset_cor} : to create branch off of current HEAD"
+    print "${yellow_cor} co -b <branch>${solid_yellow_cor} [<base_branch>]${reset_cor} : to create branch off of current HEAD"
     print "${yellow_cor} co <branch> <base_branch>${reset_cor} : to create branch off of base branch"
     return 0;
   fi
@@ -4911,43 +4937,47 @@ function co() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  fetch --quiet
-
-  print_debug_ "co_is_h: $co_is_h co_is_a: $co_is_a co_is_r: $co_is_r co_is_b: $co_is_b co_is_e: $co_is_e co_is_p: $co_is_p"
+  print_debug_ "co - co_is_a: $co_is_a co_is_r: $co_is_r co_is_b: $co_is_b co_is_e: $co_is_e co_is_p: $co_is_p"
 
   # co pr
   if (( co_is_p && co_is_r )); then
-    print_debug_ "co -pr $@"
+    print_debug_ "co -pr asking for: $@"
     local pr=("${(@f)$(select_pr_ "$1")}")
     if (( $? != 0 )); then return 0; fi
 
-    print " pr: ${pr[@]}"
+    print " pr: ${pr[@]}" >&1
 
     return 0;
 
-    if [[ -n "${pr[1]}" ]]; then
-      print " checking out PR: ${pr[2]}"
-      gh pr checkout ${pr[1]}
-    fi
-    return 0;
+    # if [[ -n "${pr[1]}" ]]; then
+    #   print " checking out PR: ${pr[2]}" >&1
+    #   gh pr checkout ${pr[1]}
+    # fi
+
+    # return 0;
   fi
 
   # co -a all branches
   if (( co_is_a )); then
-    print_debug_ "co -a $@"
-    local $branch_choice="$(select_branch_ --all "$1")"
+    print_debug_ "co -a asking for: $@"
+    fetch --quiet
+    local branch_choice="$(select_branch_ -a "$1")"
+    print_debug_ "co -a branch_choice: $branch_choice"
 
     if [[ -z "$branch_choice" ]]; then
       return 1;
-    fi    
+    fi
+
     co -e $branch_choice
     return $?
   fi
 
   # co -r remote branches
   if (( co_is_r )); then
-    print_debug_ "co -r $@"
-    local $branch_choice="$(select_branch_ -r "$1")"
+    print_debug_ "co -r asking for: $@"
+    fetch --quiet
+    local branch_choice="$(select_branch_ -r "$1")"
+    print_debug_ "co -r branch_choice: $branch_choice"
 
     if [[ -z "$branch_choice" ]]; then
       return 1;
@@ -4958,22 +4988,37 @@ function co() {
 
   # co -b branch create branch
   if (( co_is_b )); then
-    print_debug_ "co -b $@"
-    if [[ -z "$1" ]]; then
+    print_debug_ "co -b asking for: $@"
+    local branch="$1"
+    local base_branch="$2"
+
+    if [[ -z "$branch" ]]; then
       print " branch is required" >&2
       print " ${yellow_cor} co -b <branch>${reset_cor} : to create branch off of current HEAD" >&2
       print " ${yellow_cor} co -h${reset_cor} to see usage" >&2
       return 1;
     fi
 
-    local _past_branch="$(git branch --show-current)"
-    
-    exec_ "git checkout -b $1"
+    if [[ -z "$base_branch" ]]; then
+      base_branch="$(git branch --show-current)"
+    fi
+
+    print_debug_ "co -b branch: "$branch" base_branch: "$base_branch""
+
+    fetch --quiet
+
+    exec_ "git checkout -b "$branch" "$base_branch""
 
     if (( $? == 0 )); then
-      ll_add_node_ "" "$(PWD)" "$_past_branch"
+      ll_add_node_ "" "$(PWD)" "$base_branch"
 
-      exec_ "git config branch.${branch}.gh-merge-base ${_past_branch}"
+      local remote_branch=$(git ls-remote --heads origin "$base_branch" | awk '{print $2}')
+
+      if [[ -n "$remote_branch" ]]; then
+        exec_ "git config branch."$branch".gh-merge-base "$remote_branch""
+      else
+        exec_ "git config branch."$branch".gh-merge-base "$base_branch""
+      fi
       return 0;
     fi
 
@@ -4982,27 +5027,29 @@ function co() {
 
   # co -e branch just checkout, do not create branch
   if (( co_is_e )); then
-    if [[ -z "$1" ]]; then
+    if (( co_is_x )); then
+      print_debug_ "co -ex asking for: $@"
+    else
+      print_debug_ "co -e asking for: $@"
+    fi
+
+    local branch="$1"
+
+    if [[ -z "$branch" ]]; then
       print " branch is required" >&2
       print " ${yellow_cor} co -e <branch>${reset_cor} : to switch to exact branch" >&2
       print " ${yellow_cor} co -h${reset_cor} to see usage" >&2
       return 1;
     fi
     
-    local _past_branch="$(git branch --show-current)"
+    local current_branch="$(git branch --show-current)"
     local _past_folder="$(PWD)"
-    
-    if (( co_is_x )); then
-      print_debug_ "co -ex $@"
-    else
-      print_debug_ "co -e $@"
-    fi
 
-    exec_ "git switch $1 --quiet"
+    exec_ "git switch "$branch" --quiet"
 
     if (( $? == 0 )); then
       if (( ! co_is_x )); then
-        ll_add_node_ "" "$_past_folder" "$_past_branch"
+        ll_add_node_ "" "$_past_folder" "$current_branch"
       fi
       return 0;
     fi
@@ -5013,9 +5060,8 @@ function co() {
   # co (no arguments)
   if [[ -z "$1" ]]; then
     print_debug_ "co (no arguments and no flags)"
-    local $branch_choice="$(select_branch_ --list)"
-
-    print "branch_choice: $branch_choice" >&2
+    local branch_choice="$(select_branch_ --list)"
+    print_debug_ "co - branch_choice: $branch_choice"
 
     if [[ -z "$branch_choice" ]]; then
       return 1;
@@ -5025,14 +5071,14 @@ function co() {
     return $?
   fi
 
-  # co branch (no flags)
+  # co branch (no flags, no base branch)
   if [[ -z "$2" ]]; then
-    print_debug_ "co $1 (no flags)"
+    print_debug_ "co asking for: $1 (no flags)"
     co -a $1
     return $?
   fi
 
-  print_debug_ "co $@"
+  print_debug_ "co asking for: $@"
   # co branch BASE_BRANCH (creating branch)
   local branch="$1"
   
@@ -5048,21 +5094,29 @@ function co() {
     return 0;
   fi
 
-  local _past_branch="$(git branch --show-current)"
+  local current_branch="$(git branch --show-current)"
 
-  exec_ "git switch $base_branch --quiet"
+  fetch --quiet
+
+  exec_ "git switch "$base_branch" --quiet"
   if (( $? != 0 )); then return 1; fi
 
   pull --quiet
-  exec_ "git branch $branch $base_branch" # create branch
+  exec_ "git branch "$branch" "$base_branch"" # create branch
   if (( $? != 0 )); then return 1; fi
 
-  exec_ "git switch $branch"
+  exec_ "git switch "$branch""
   if (( $? != 0 )); then return 1; fi
 
-  ll_add_node_ "" "$(PWD)" "$_past_branch"
+  ll_add_node_ "" "$(PWD)" "$current_branch"
 
-  exec_ "git config branch.$branch.gh-merge-base $base_branch"
+  local remote_branch=$(git ls-remote --heads origin "$base_branch" | awk '{print $2}')
+
+  if [[ -n "$remote_branch" ]]; then
+    exec_ "git config branch."$branch".gh-merge-base "$remote_branch""
+  else
+    exec_ "git config branch."$branch".gh-merge-base "$base_branch""
+  fi
 }
 
 function next() {
@@ -5124,7 +5178,9 @@ function open_working_() {
 
 # checkout dev or develop branch
 function dev() {
-  if [[ "$1" == "-h" ]]; then
+  eval "$(parse_flags_ "dev_" "" "$@")"
+
+  if (( dev_is_h )); then
     print "${yellow_cor} dev${reset_cor} : to switch to dev or develop in current project"
     return 0;
   fi
@@ -5141,7 +5197,9 @@ function dev() {
 
 # checkout main branch
 function main() {
-  if [[ "$1" == "-h" ]]; then
+  eval "$(parse_flags_ "main_" "" "$@")"
+
+  if (( main_is_h )); then
     print "${yellow_cor} main${reset_cor} : to switch to main in current project"
     return 0;
   fi
@@ -5158,7 +5216,9 @@ function main() {
 
 # checkout stage branch
 function stage() {
-  if [[ "$1" == "-h" ]]; then
+  eval "$(parse_flags_ "stage_" "" "$@")"
+
+  if (( stage_is_h )); then
       print "${yellow_cor} main${reset_cor} : to switch to stage or staging in current project"
     return 0;
   fi
@@ -5176,10 +5236,18 @@ function stage() {
 # Merging & Rebasing -----------------------------------------------------------------------=
 # rebase $1 or main
 function rebase() {
+  eval "$(parse_flags_ "rebase_" "" "$@")"
+
+  if (( rebase_is_h )); then
+      print "${yellow_cor} rebase${reset_cor} : to apply the commits from your branch on top of the HEAD commit of $(git config --get init.defaultBranch)"
+      print "${yellow_cor} rebase${solid_yellow_cor} [<branch>]${reset_cor} : to apply the commits from your branch on top of the HEAD commit of a branch"
+    return 0;
+  fi
+
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  local my_branch=$(git branch --show-current)
-  local default_main_branch=$(git config --get init.defaultBranch)
+  local my_branch="$(git branch --show-current)"
+  local default_main_branch="$(git config --get init.defaultBranch)"
   local main_branch="${1:-$default_main_branch}"
 
   if [[ "$my_branch" == "$default_main_branch" ]]; then
@@ -5189,22 +5257,30 @@ function rebase() {
 
   git fetch origin --quiet
 
-  print " rebase from branch${blue_cor} $main_branch ${reset_cor}"
-  git rebase origin/$main_branch
+  print " rebase from branch${blue_cor} "$main_branch" ${reset_cor}"
+  git rebase origin/"$main_branch"
 
   if (( $? == 0 )); then
     if confirm_from_ "done. now git push?"; then
-      git push --force-with-lease --no-verify --set-upstream origin $my_branch
+      git push --force-with-lease --no-verify --set-upstream origin "$my_branch"
     fi
   fi
 }
 
 # merge branch $1 or default branch
 function merge() {
+  eval "$(parse_flags_ "merge_" "" "$@")"
+
+  if (( merge_is_h )); then
+      print "${yellow_cor} merge${reset_cor} : to create a new merge commit from $(git config --get init.defaultBranch)"
+      print "${yellow_cor} merge${solid_yellow_cor} [<branch>]${reset_cor} : to create a new merge commit from a branch"
+    return 0;
+  fi
+
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  local my_branch=$(git branch --show-current)
-  local default_main_branch=$(git config --get init.defaultBranch)
+  local my_branch="$(git branch --show-current)"
+  local default_main_branch="$(git config --get init.defaultBranch)"
   local main_branch="${1:-$default_main_branch}"
 
   if [[ "$my_branch" == "$default_main_branch" ]]; then
@@ -5214,21 +5290,28 @@ function merge() {
 
   git fetch origin --quiet
 
-  print " merge from branch${blue_cor} $main_branch ${reset_cor}"
-  git merge origin/$main_branch --no-edit
+  print " merge from branch${blue_cor} "$main_branch" ${reset_cor}"
+  git merge origin/"$main_branch" --no-edit
 
   if (( $? == 0 )); then
     if confirm_from_ "done. now git push?"; then
-      git push --no-verify --set-upstream origin $my_branch
+      git push --no-verify --set-upstream origin "$my_branch"
     fi
   fi
 }
 
 # Delete branches ===========================================================
 function prune() {
+  eval "$(parse_flags_ "prune_" "" "$@")"
+
+  if (( prune_is_h )); then
+      print "${yellow_cor} prune${reset_cor} : to clean up unreachable or orphaned git branches and tags"
+    return 0;
+  fi
+
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  local default_main_branch=$(git config --get init.defaultBranch)
+  local default_main_branch="$(git config --get init.defaultBranch)"
 
   # delets all tags
   git tag -l | xargs git tag -d >/dev/null
@@ -5237,121 +5320,63 @@ function prune() {
   
   # lists all branches that have been merged into the currently checked-out branch
   # that can be safely deleted without losing any unmerged work and filters out the default branch
-  git branch --merged | grep -v "^\*\\|$default_main_branch" | xargs -n 1 git branch -d
+  local branches=$(git branch --merged | grep -v "^\*\\|$default_main_branch")
+
+  for branch in $branches; do
+    git config --remove-section branch."$branch" &>/dev/null
+    git branch -D "$branch"
+  done
+
+  local current_branches=$(git branch --format '%(refname:short)')
+
+  # Loop through all Git config sections to find old branches
+  for config in $(git config --get-regexp "^branch\." | awk '{print $1}'); do
+    local branch_name="${config#branch.}"
+
+    # Check if the branch exists locally
+    if ! echo "$current_branches" | grep -q "^$branch_name$"; then
+      git config --remove-section "branch."$branch_name"" &>/dev/null
+    fi
+  done
+
   git prune "$@"
 }
 
 # list branches and select one to delete or delete $1
 function delb() {
-  if [[ "$1" == "-h" ]]; then
-    if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then 
-      print "${yellow_cor} delb${solid_yellow_cor} [<branch>]${reset_cor} : to find branches to delete in $Z_CURRENT_PROJECT_SHORT_NAME"
-    fi
-    print "${yellow_cor} delb -f${reset_cor} : to delete default braches too"
-    print "${yellow_cor} delb <pro>${solid_yellow_cor} [<branch>]${reset_cor} : to find branches to delete in a project"
+  eval "$(parse_flags_ "delb_" "s" "$@")"
+
+  if (( delb_is_h )); then
+    print "${yellow_cor} delb${solid_yellow_cor} [<branch>]${reset_cor} : to find branches to delete"
+    print "${yellow_cor} delb <branch>${solid_yellow_cor} [<branch>]${reset_cor} : to find branches to delete"
+    print "${yellow_cor} delb -s${reset_cor} : to delete without confirmation"
     return 0;
   fi
 
-  if [[ $1 == -* ]]; then
-    eval "delb -h"
-    return 0;
-  fi
+  check_git_; if (( $? != 0 )); then return 1; fi
 
-  if ! command -v gum &>/dev/null; then
-    print " delb requires gum" >&2
-    print " install gum:${blue_cor} https://github.com/charmbracelet/gum ${reset_cor}" >&2
-    return 1;
-  fi
-
-  local proj_arg=""
-  local branch_arg=""
-
-  if [[ -n "$2" ]]; then
-    proj_arg="$1"
-    branch_arg="$2"
-  elif [[ -n "$1" && "$1" != "-1" ]]; then
-    # Check if the first argument matches any of the project names dynamically
-    for i in {1..9}; do
-      if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-        proj_arg="$1"
-        break
-      fi
-    done
-
-    # If it's not a project name, treat it as a branch argument
-    if [[ -z "$proj_arg" ]]; then
-      branch_arg="$1"
-    fi
-  fi
-
-  local proj_folder="$(PWD)"
-  local pump_working_branch=""
-
-  if [[ -n "$proj_arg" ]]; then
-    # Loop through project numbers from 1 to 10
-    for i in {1..9}; do
-      # Check if the project name matches
-      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-        proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
-        if [ -z "$proj_folder" ]; then return 1; fi
-
-        pump_working_branch="${PUMP_WORKING[$i]}"
-        break
-      fi
-    done
-    
-    # If no project matched, show an error
-    if [[ -z "$proj_folder" ]]; then
-      print " invalid project name: $proj_arg" >&2
-      print " ${yellow_cor} delb -h${reset_cor} to see usage" >&2
-      return 1;
-    fi
-  fi
-  
-  local _pwd="$(PWD)";
-
-  open_prj_for_git_ "$proj_folder"
-  if (( $? != 0 )); then return 1; fi
-  
-  local proj_folder="$(PWD)";
-
+  local branch_arg="$1"
   local is_deleted=1;
-  local selected_branches=""
 
-  # delb (no arguments)
-  if [[ -z "$branch_arg" ]] || [[ "$1" == "-f" ]]; then
-    local branches_to_choose="";
-    if [[ "$1" == "-f" ]]; then
-      branches_to_choose=$(git branch | grep -v '^\*' | cut -c 3- | sort -fu);
-    else
-      branches_to_choose=$(git branch | grep -v '^\*' | cut -c 3- | grep -vE '^(main|dev|stage|master|staging|develop)$' | sort -fu);
-    fi
-    if [[ -n "$branches_to_choose" ]]; then
-      selected_branches=$(choose_multiple_branches_ "choose branches to delete" "$branches_to_choose")
-      print "$selected_branches" | xargs git branch -D
-      is_deleted=$?
-    else
-      print " no branches found to delete in \e[96m$(shorten_path_ $proj_folder) ${reset_cor}" >&2
-      return 1;
-    fi
-  else # delb branch
-    local branch_search="${branch_arg//\*/}"
-    selected_branches=$(git branch | grep -w "$branch_search" | cut -c 3- | head -n 1)
-
-    if [[ -z "$selected_branches" ]]; then
-      print " no branches matching in \e[96m$(shorten_path_ $proj_folder)${reset_cor}: $branch_search" >&2
-      return 1;
-    else
-      local confirm_msg="delete "$'\e[94m'$selected_branches:$'\e[0m'" in "$'\e[94m'$(shorten_path_ $proj_folder)$'\e[0m'"?"
-      
-      if confirm_from_ $confirm_msg; then
-        git branch -D $selected_branches
-        is_deleted=$?
+  local selected_branches=($(select_branch_ --list "$branch_arg" 1))
+  for branch in ${selected_branches[@]}; do
+    if (( ! delb_is_s )); then
+      local confirm_msg="delete local branch: "$'\e[0;95m'$branch$'\e[0m'"?"
+      confirm_from_ $confirm_msg
+      RET=$?
+      if (( RET == 130 )); then
+        break;
+      elif (( RET == 1 )); then
+        continue;
       fi
     fi
-  fi
 
-  if [[ $is_deleted -eq 0 ]]; then
+    git config --remove-section branch."$branch" &>/dev/null
+    git branch -D "$branch"
+    is_deleted=$?
+  done
+
+  if (( ! is_deleted )); then
     delete_pump_workings_ "$pump_working_branch" "$proj_arg" "$selected_branches"
   fi
 
@@ -5753,11 +5778,11 @@ function z_project_handler_() { # pump() project()
   fi
 
   if [[ -n "$folder_arg" ]]; then
-    print_debug_ "z_project_handler_: checking folder: $proj_folder/$folder_arg"
+    print_debug_ "z_project_handler_: checking folder: "${proj_folder}/${folder_arg}""
     print_debug_ "z_project_handler_: checking proj_folder: [$proj_folder]"
     print_debug_ "z_project_handler_: checking folder_arg: [$folder_arg]"
-    if [[ -d "$proj_folder/$folder_arg" ]]; then
-      $folder_arg="$proj_folder/$folder_arg"
+    if [[ -d "${proj_folder}/${folder_arg}" ]]; then
+      $folder_arg="${proj_folder}/${folder_arg}"
     else
       $folder_arg="$proj_folder"
     fi
