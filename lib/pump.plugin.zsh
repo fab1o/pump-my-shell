@@ -2727,9 +2727,9 @@ function covc() {
     mkdir -p coverage &>/dev/null
   fi
 
-  eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.$branch.txt" 2>&1
+  eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.txt" 2>&1
   if (( $? != 0 )); then
-    eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.$branch.txt" 2>&1
+    eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.txt" 2>&1
   fi
 
   echo "   running test coverage on $branch..."
@@ -2739,7 +2739,7 @@ function covc() {
   rm "$pipe_name"
   wait $spin_pid &>/dev/null
 
-  summary1=$(grep -A 4 "Coverage summary" "coverage/coverage-summary.$branch.txt")
+  summary1=$(grep -A 4 "Coverage summary" "coverage/coverage-summary.txt")
 
   # Extract each coverage percentage
   statements1=$(echo "$summary1" | grep "Statements" | awk '{print $3}' | tr -d '%')
@@ -2750,8 +2750,7 @@ function covc() {
   if (( is_delete_cov_folder )); then
     rm -rf "coverage" &>/dev/null
   else
-    rm -f "coverage/coverage-summary.$branch.txt" &>/dev/null
-    rm -f "coverage/coverage-summary.$my_branch.txt" &>/dev/null
+    rm -f "coverage/coverage-summary.txt" &>/dev/null
   fi
 
   popd &>/dev/null
@@ -2775,9 +2774,9 @@ function covc() {
   gum spin --title "running test coverage on $my_branch..." -- sh -c "read < $pipe_name" &
   spin_pid=$!
 
-  eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.$my_branch.txt" 2>&1
+  eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.txt" 2>&1
   if (( $? != 0 )); then
-    eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.$my_branch.txt" 2>&1
+    eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.txt" 2>&1
   fi
 
   echo "   running test coverage on $my_branch..."
@@ -2787,7 +2786,7 @@ function covc() {
   rm "$pipe_name"
   wait $spin_pid &>/dev/null
 
-  summary2=$(grep -A 4 "Coverage summary" "coverage/coverage-summary.$my_branch.txt")
+  summary2=$(grep -A 4 "Coverage summary" "coverage/coverage-summary.txt")
 
   # Extract each coverage percentage
   statements2=$(echo "$summary2" | grep "Statements" | awk '{print $3}' | tr -d '%')
@@ -2822,8 +2821,7 @@ function covc() {
   if (( is_delete_cov_folder )); then
     rm -rf "coverage" &>/dev/null
   else
-    rm -f "coverage/coverage-summary.$branch.txt" &>/dev/null
-    rm -f "coverage/coverage-summary.$my_branch.txt" &>/dev/null
+    rm -f "coverage/coverage-summary.txt" &>/dev/null
   fi
 
   print ""
@@ -4430,11 +4428,11 @@ function push() {
   elif (( push_is_t )); then
     git push --no-verify --tags $@
   elif (( push_is_f && push_is_l )); then
-    git push --no-verify --force-with-lease --set-upstream origin $my_branch $@
+    git push --no-verify --force-with-lease --set-upstream origin "$my_branch" $@
   elif (( push_is_f )); then
-    git push --no-verify --force --set-upstream origin $my_branch $@
+    git push --no-verify --force --set-upstream origin "$my_branch" $@
   else
-    git push --no-verify --set-upstream origin $my_branch $@
+    git push --no-verify --set-upstream origin "$my_branch" $@
   fi
 
   if (( ! $? && ! push_is_t )); then
@@ -4463,7 +4461,7 @@ function pushf() {
 
 
   if (( pf_is_l )); then
-    git push --no-verify --force-with-lease origin $my_branch $@
+    git push --no-verify --force-with-lease origin "$my_branch" $@
   elif (( pf_is_t )); then
     git push --no-verify --tags --force $@
   else
@@ -4545,11 +4543,11 @@ function exec_() {
 }
 
 function pull() {
-  eval "$(parse_flags_ "pull_" "" "$@")"
+  eval "$(parse_flags_ "pull_" "lq" "$@")"
 
   if (( pull_is_h )); then
-    print "${yellow_cor} pull ${solid_yellow_cor}[<origin_branch>]${reset_cor} : to pull from origin branch"
-    print " ${yellow_cor}  -t${reset_cor} : to pull tags"
+    print "${yellow_cor} pull${reset_cor} : to pull from origin branch"
+    print "${yellow_cor} pull -t${reset_cor} : to pull tags"
     return 0;
   fi
 
