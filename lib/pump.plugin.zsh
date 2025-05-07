@@ -5869,7 +5869,7 @@ function pop() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   if (( pop_is_a )); then
-    git stash list | awk '{print $1}' | xargs git stash pop --index
+    git stash list | awk '{print $1}' | xargs -n1 git stash pop --index
   else
     git stash pop --index
   fi
