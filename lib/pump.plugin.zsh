@@ -4332,7 +4332,7 @@ function recommit() {
 
   if (( $? == 0 && ! recommit_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
-    git log -1 --pretty=format:'%h %s' | xargs -0
+    git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
   fi
 }
 
@@ -4570,7 +4570,7 @@ function push() {
 
   if (( RET == 0 && quiet == 0 )); then
     print ""
-    git log -1 --pretty=format:'%H %s' | xargs
+    git --no-pager log -1 --pretty=format:'%H %s' | xargs
     RET=$?
   fi
 
@@ -4605,7 +4605,7 @@ function pushf() {
 
   if (( RET == 0 && ! pushf_is_t && ! pushf_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
-    git log -1 --pretty=format:'%h %s' | xargs -0
+    git --no-pager log -1 --pretty=format:'%H %s' | xargs
     RET=$?
   fi
 
@@ -4700,7 +4700,7 @@ function pull() {
 
   if (( RET == 0 && quiet == 0 )); then
     print ""
-    git log -1 --pretty=format:'%h %s' | xargs -0
+    git --no-pager log -1 --pretty=format:'%H %s' | xargs
     RET=$?
   fi
 
