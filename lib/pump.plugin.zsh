@@ -4612,7 +4612,6 @@ function pushf() {
 
 function stash() {
   eval "$(parse_flags_ "stash_" "vl" "$@")"
-  eval "$(parse_flags_ "stash_" "vl" "$@")"
   (( stash_is_d )) && set -x
 
   if (( stash_is_h )); then
@@ -4623,6 +4622,14 @@ function stash() {
   fi
 
   check_git_; if (( $? != 0 )); then return 1; fi
+
+  if (( stash_is_v )); then
+    git stash show -p stash@{${1:-0}}
+    return $?;
+  elif (( stash_is_l )); then
+    git stash list | head -n ${1:-10}
+    return $?;
+  fi
 
   if (( stash_is_v )); then
     git stash show -p stash@{${1:-0}}
@@ -5880,7 +5887,20 @@ function pop() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   if (( pop_is_a )); then
-    git stash list | awk '{print $1}' | xargs -n1 git stash pop --index
+    local stashes=()
+    local stash
+
+    # Collect stash refs in an array
+    while IFS= read -r line; do
+      stash="${line%%:*}"  # strip everything after the first colon
+      stashes+=("$stash")
+    done < <(git stash list)
+
+    # Pop in reverse order (so indices don’t shift)
+    for (( i=${#stashes[@]}-1; i>=0; i-- )); do
+      echo "Popping ${stashes[i]}..."
+      git stash pop --index "${stashes[i]}" || break
+    done
   else
     git stash pop --index
   fi
