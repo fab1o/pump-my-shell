@@ -1702,7 +1702,7 @@ function save_prj_folder_() {
   fi
 
   local header=""
-  if (( single_mode && save_prj_folder_is_r )); then
+  if (( single_mode )) && (( save_prj_folder_is_r || save_prj_folder_is_s )); then
     header="select the folder where your project was cloned"
   else
     handle_folder_processing=1
@@ -1714,7 +1714,9 @@ function save_prj_folder_() {
     #clear_last_line_
   fi
 
-  print_debug_ "save_prj_folder_ choose folder: $chose_folder"
+  print_debug_ "save_prj_folder_ chose_folder: $chose_folder"
+  print_debug_ "save_prj_folder_ handle_folder_processing: $handle_folder_processing - single_mode: $single_mode"
+
 
   if [[ -n "$chose_folder" ]]; then
     local proj_folder="$chose_folder"
@@ -2284,13 +2286,31 @@ function get_default_branch_folder_() {
 }
 
 function is_project_single_mode_() {
-  local proj_folder="${1:-$PWD}"
+  local i=$1
+
+  local proj_folder=""
+  local single_mode=""
+
+  if (( i > 0 )); then
+    proj_folder="${Z_PROJECT_FOLDER[$i]}"
+    single_mode="${Z_PROJECT_SINGLE_MODE[$i]}"
+  else
+    proj_folder="$Z_CURRENT_PROJECT_FOLDER"
+    single_mode="$Z_CURRENT_SINGLE_MODE"
+  fi
+
+  local proj_folder="${proj_folder:-$PWD}"
 
   if [[ -n "$proj_folder" && -d "$proj_folder" ]]; then
     if is_git_repo_ "$proj_folder" || [[ -f "$proj_folder/package.json" || -f "$proj_folder/pyproject.toml" || -d "$proj_folder/.git" ]]; then
       echo 1;
       return 0;
     fi
+  fi
+
+  if (( single_mode )); then
+    echo 1;
+    return 0;
   fi
 
   echo 0;
@@ -2640,7 +2660,7 @@ function covc() {
   #   fi
   # fi
 
-  local is_single_mode=$(is_project_single_mode_ "$proj_folder")
+  local is_single_mode=$(is_project_single_mode_ 0 "$proj_folder")
 
   if (( is_single_mode )); then
     cov_folder=".$proj_folder-coverage"
@@ -3137,9 +3157,9 @@ function run() {
     if [[ -n $i ]]; then
       proj_arg="${1:-$Z_CURRENT_PROJECT_SHORT_NAME}"
       if [[ "$2" == "dev" || "$2" == "stage" || "$2" == "prod" ]]; then
-        local is_single_mode=$(is_project_single_mode_ "${Z_PROJECT_FOLDER[$i]}")
+        local single_mode=$(is_project_single_mode_ $i)
 
-        if (( is_single_mode )); then
+        if (( single_mode )); then
           _env="$2";
         else
           folder_arg="$2";
@@ -3470,6 +3490,7 @@ function rev() {
   local _setup=""
   local _clone=""
   local code_editor="$Z_CURRENT_PROJECT_REPO"
+  local single_mode=""
 
   local i=0
   for i in {1..9}; do
@@ -3483,6 +3504,7 @@ function rev() {
       _setup="${Z_SETUP[$i]}"
       _clone="${Z_CLONE[$i]}"
       code_editor="${Z_CODE_EDITOR[$i]}"
+      single_mode=$(is_project_single_mode_ $i)
       break
     fi
   done
@@ -3549,8 +3571,7 @@ function rev() {
   local revs_folder=""
 
   # check if using the proj_folder as single clone mode
-  local is_single_mode=$(is_project_single_mode_ "$proj_folder")
-  if (( is_single_mode )); then
+  if (( single_mode )); then
     revs_folder=".$proj_folder-revs"
   else
     revs_folder="$proj_folder/revs"
@@ -3734,6 +3755,7 @@ function clone() {
   local _clone=""
   local default_branch=""
   local print_readme=1
+  local single_mode=""
 
   local i=0
   for i in {1..9}; do
@@ -3747,6 +3769,7 @@ function clone() {
       _clone="${Z_CLONE[$i]}"
       default_branch="${Z_DEFAULT_BRANCH[$i]}"
       print_readme="${Z_PRINT_README[$i]}"
+      single_mode=$(is_project_single_mode_ $i)
       break
     fi
   done
@@ -3761,39 +3784,27 @@ function clone() {
     return 1;
   fi
 
-  local work_mode=""
-
-  if [[ -d "$proj_folder" ]]; then
-    local is_single_mode=$(is_project_single_mode_ "$proj_folder")
-    
-    if (( is_single_mode )); then             # SINGLE MODE
-      print "${solid_blue_cor} $proj_arg${reset_cor} already cloned in 'single mode': $proj_folder" >&2
-      print "" >&2
-      print " to clone a different branch, you must start over in 'multi mode':" >&2
-      print "  1. either delete:${yellow_cor} del \"$proj_folder\" ${reset_cor}" >&2
-      print "     or change the entry in your pump.zshenv then${yellow_cor} refresh${reset_cor}" >&2
-      print "  2. clone again:${yellow_cor} clone $proj_arg $branch_arg ${reset_cor}" >&2
-      return 1;
-    else
-      if [[ -n "$(ls -A "$proj_folder")" ]]; then
-        # is multi mode
-        work_mode="m"
-      fi
-    fi
+  if (( single_mode )); then
+    print "${solid_blue_cor} $proj_arg${reset_cor} already cloned in 'single mode': $proj_folder" >&2
+    print "" >&2
+    print " to clone a different branch, edit the project to 'multiple mode':" >&2
+    print "  1. ${yellow_cor}pro -e ${proj_arg}${reset_cor}" >&2
+    print "  2. then choose 'multiple' and save project" >&2
+    return 1;
   fi
 
   local user_selected_mode=0;
 
-  if [[ -z "$branch_arg" && -z "$work_mode" ]]; then
+  if [[ -z "$branch_arg" && -z "$single_mode" ]]; then
     # ask user if they want to single project mode, or multiple mode
-    work_mode=$(choose_mode_ $proj_arg 1)
+    single_mode=$(choose_mode_ $proj_arg 1)
     if (( $? == 130 )); then
       return 130;
     fi
 
     user_selected_mode=1;
 
-    if [[ "$work_mode" == "s" ]]; then
+    if (( single_mode )); then
       if [[ -d "$proj_folder" && -n "$(ls -A "$proj_folder")" ]]; then
         print "  ${solid_yellow_cor}project folder '$proj_folder' is not empty, going with 'multi mode' ${reset_cor}"
       else
@@ -3850,7 +3861,7 @@ function clone() {
         return 0;
       fi
     fi
-    # end of -z "$branch_arg" && -z "$work_mode"
+    # end of (( single_mode ))
   fi
 
   # multiple mode (requires passing a branch name)
@@ -5950,7 +5961,7 @@ function z_project_handler_() { # pump() project()
     return 0;
   fi
 
-  #local is_single_mode=$(is_project_single_mode_ "${Z_PROJECT_FOLDER[$i]}")
+  local single_mode=$(is_project_single_mode_ $i)
 
   if (( z_project_handler_is_f )); then
     local folders=($(get_folders_ "$proj_folder"))
@@ -5964,7 +5975,7 @@ function z_project_handler_() { # pump() project()
     return 0;
   fi
 
-  print_debug_ "z_project_handler_: is_single_mode: $is_single_mode, proj_folder: $proj_folder"
+  print_debug_ "z_project_handler_: single_mode: $single_mode, proj_folder: $proj_folder"
 
   local folder_arg=""
   local branch_arg=""
@@ -5981,7 +5992,7 @@ function z_project_handler_() { # pump() project()
       branch_arg="$1"
     fi
   else
-    if (( is_single_mode )); then
+    if (( single_mode )); then
       branch_arg=$(gll "$proj_folder")
       if [[ -z "$branch_arg" ]]; then
         return 1;
