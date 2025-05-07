@@ -1280,10 +1280,10 @@ function help() {
     return 0;
   fi
   
-  help_line_ "git stash" "${solid_cyan_cor}"
-  print ""
-  print " ${solid_cyan_cor} pop ${reset_cor}\t\t = apply stash then remove from list"
-  print " ${solid_cyan_cor} stash ${reset_cor}\t = stash all files"
+  # help_line_ "git stash" "${solid_cyan_cor}"
+  # print ""
+  # print " ${solid_cyan_cor} pop ${reset_cor}\t\t = apply stash then remove from list"
+  # print " ${solid_cyan_cor} stash ${reset_cor}\t = stash all files"
 
   print ""
   help_line_ "git tags" "${solid_cyan_cor}"
@@ -4610,45 +4610,45 @@ function pushf() {
   return $RET;
 }
 
-function stash() {
-  eval "$(parse_flags_ "stash_" "vl" "$@")"
-  (( stash_is_d )) && set -x
+# function stash() {
+#   eval "$(parse_flags_ "stash_" "vl" "$@")"
+#   (( stash_is_d )) && set -x
 
-  if (( stash_is_h )); then
-    print "  ${yellow_cor}stash [<name>]${reset_cor} : to stash all files"
-    print "  ${yellow_cor}stash -v ${solid_yellow_cor}[n]${reset_cor} : to view latest nth stash"
-    print "  ${yellow_cor}stash -l ${solid_yellow_cor}[n]${reset_cor} : to list stashes, limit by n"
-    return 0;
-  fi
+#   if (( stash_is_h )); then
+#     print "  ${yellow_cor}stash [<name>]${reset_cor} : to stash all files"
+#     print "  ${yellow_cor}stash -v ${solid_yellow_cor}[n]${reset_cor} : to view latest nth stash"
+#     print "  ${yellow_cor}stash -l ${solid_yellow_cor}[n]${reset_cor} : to list stashes, limit by n"
+#     return 0;
+#   fi
 
-  check_git_; if (( $? != 0 )); then return 1; fi
+#   check_git_; if (( $? != 0 )); then return 1; fi
 
-  if (( stash_is_v )); then
-    git stash show -p stash@{${1:-0}}
-    return $?;
-  elif (( stash_is_l )); then
-    git stash list | head -n ${1:-10}
-    return $?;
-  fi
+#   if (( stash_is_v )); then
+#     git stash show -p stash@{${1:-0}}
+#     return $?;
+#   elif (( stash_is_l )); then
+#     git stash list | head -n ${1:-10}
+#     return $?;
+#   fi
 
-  if (( stash_is_v )); then
-    git stash show -p stash@{${1:-0}}
-    return $?;
-  elif (( stash_is_l )); then
-    git stash list | head -n ${1:-10}
-    return $?;
-  fi
+#   if (( stash_is_v )); then
+#     git stash show -p stash@{${1:-0}}
+#     return $?;
+#   elif (( stash_is_l )); then
+#     git stash list | head -n ${1:-10}
+#     return $?;
+#   fi
 
-  if [[ -n "$1" ]]; then
-    git stash push --include-untracked --message "$1" ${@:2}
-    RET=$?
-  fi
+#   if [[ -n "$1" ]]; then
+#     git stash push --include-untracked --message "$1" ${@:2}
+#     RET=$?
+#   fi
 
-  git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)"
-  RET=$?
+#   git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)"
+#   RET=$?
 
-  return $RET;
-}
+#   return $RET;
+# }
 
 function dtag() {
   eval "$(parse_flags_ "dtag_" "" "$@")"
@@ -5874,37 +5874,37 @@ function delb() {
   return $RET;
 }
 
-function pop() {
-  eval "$(parse_flags_ "pop_" "a" "$@")"
-  (( pop_is_d )) && set -x
+# function pop() {
+#   eval "$(parse_flags_ "pop_" "a" "$@")"
+#   (( pop_is_d )) && set -x
 
-  if (( pop_is_h )); then
-    print "  ${yellow_cor}pop${reset_cor} : to pop stash"
-    print "  ${yellow_cor}pop -a${reset_cor} : to pop all stashes"
-    return 0;
-  fi
+#   if (( pop_is_h )); then
+#     print "  ${yellow_cor}pop${reset_cor} : to pop stash"
+#     print "  ${yellow_cor}pop -a${reset_cor} : to pop all stashes"
+#     return 0;
+#   fi
 
-  check_git_; if (( $? != 0 )); then return 1; fi
+#   check_git_; if (( $? != 0 )); then return 1; fi
 
-  if (( pop_is_a )); then
-    local stashes=()
-    local stash
+#   if (( pop_is_a )); then
+#     local stashes=()
+#     local stash
 
-    # Collect stash refs in an array
-    while IFS= read -r line; do
-      stash="${line%%:*}"  # strip everything after the first colon
-      stashes+=("$stash")
-    done < <(git stash list)
+#     # Collect stash refs in an array
+#     while IFS= read -r line; do
+#       stash="${line%%:*}"  # strip everything after the first colon
+#       stashes+=("$stash")
+#     done < <(git stash list)
 
-    # Pop in reverse order (so indices don’t shift)
-    for (( i=${#stashes[@]}-1; i>=0; i-- )); do
-      echo "Popping ${stashes[i]}..."
-      git stash pop --index "${stashes[i]}" || break
-    done
-  else
-    git stash pop --index
-  fi
-}
+#     # Pop in reverse order (so indices don’t shift)
+#     for (( i=${#stashes[@]}-1; i>=0; i-- )); do
+#       echo "Popping ${stashes[i]}..."
+#       git stash pop --index "${stashes[i]}" || break
+#     done
+#   else
+#     git stash pop --index
+#   fi
+# }
 
 function st() {
   eval "$(parse_flags_ "st_" "" "$@")"
