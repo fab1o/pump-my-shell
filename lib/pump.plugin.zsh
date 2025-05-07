@@ -4570,7 +4570,7 @@ function push() {
 
   if (( RET == 0 && quiet == 0 )); then
     print ""
-    git log -1 --pretty=format:'%h %s' | xargs -0
+    git log -1 --pretty=format:'%H %s' | xargs
     RET=$?
   fi
 
