@@ -3,6 +3,7 @@ typeset -g is_d=0 # (debug flag) when -d is on, it will be shared across all sub
 typeset -gA Z_PROJECT_SHORT_NAME
 typeset -gA Z_PROJECT_FOLDER
 typeset -gA Z_PROJECT_REPO
+typeset -gA Z_PROJECT_SINGLE_MODE
 typeset -gA Z_PACKAGE_MANAGER
 typeset -gA Z_CODE_EDITOR
 typeset -gA Z_CLONE
@@ -36,7 +37,7 @@ typeset -g PUMP_CONFIG_FILE="$(dirname "$0")/config/pump.zshenv"
 [[ -f "$PUMP_VERSION_FILE" ]] && PUMP_VERSION=$(<"$PUMP_VERSION_FILE")
 
 if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
-  cp "$(dirname "$0")/config/pump.zshenv.default" "$PUMP_CONFIG_FILE" %>/dev/null
+  cp "$(dirname "$0")/config/pump.zshenv.default" "$PUMP_CONFIG_FILE" &>/dev/null
   if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
     echo "${red_cor} config file '$PUMP_CONFIG_FILE' does not exist, re-install pump-my-shell ${reset_cor}"
     return 1;
@@ -276,11 +277,12 @@ function ll_restore_() {
 }
 
 function confirm_between_() {
-  local question=$1
-  local option1=$2
-  local option2=$3
-  local opt1=$4
-  local opt2=$5
+  local question="$1"
+  local option1="$2"
+  local option2="$3"
+  local opt1="${option1[1]}"
+  local opt2="${option2[1]}"
+  local is_echod="${4:-0}"
 
   local chosen_mode=""
 
@@ -308,14 +310,20 @@ function confirm_between_() {
     done
     if [[ "$mode" == "${opt1:l}" || "$mode" == "${opt1:u}" ]]; then
       chosen_mode="$opt1"
+      RET=0
     elif [[ "$mode" == "${opt2:l}" || "$mode" == "${opt2:u}" ]]; then
       chosen_mode="$opt2"
+      RET=1
     else
-      return 1;
+      return 130;
     fi
   fi
 
-  echo $chosen_mode
+  if (( is_echod )); then
+    echo $chosen_mode
+  fi
+
+  return $RET;
 }
 
 function confirm_from_() {
@@ -323,30 +331,28 @@ function confirm_from_() {
 
   if command -v gum &>/dev/null; then
     gum confirm ""confirm:$'\e[0m'" $1" --no-show-help
-    RET=$?
-    if (( RET == 130 )); then
-      return 130;
-    fi
-    return $RET;
-  else
-    read -qs "?"$'\e[38;5;99m'confirm:$'\e[0m'" $1 (y/n) "
-    RET=$?
-
-    if (( RET == 130 )); then
-      return 130;
-    fi
-    
-    if [[ $REPLY == [yY] ]]; then
-      print "y" >&2
-      return 0;
-    elif [[ $REPLY == [nN] ]]; then
-      print "n" >&2
-      return 1;
-    else
-      print $REPLY >&2
-      return 1;
-    fi
+    return $?
   fi
+
+  read -qs "?"$'\e[38;5;99m'confirm:$'\e[0m'" $1 (y/n) "
+  RET=$?
+
+  if (( RET == 130 )); then
+    return 130;
+  fi
+  
+  if [[ $REPLY == [yY] ]]; then
+    print "y" >&2
+    return 0;
+  fi
+  
+  if [[ $REPLY == [nN] ]]; then
+    print "n" >&2
+    return 1;
+  fi
+  
+  print $REPLY >&2
+  return 130;
 }
 
 function update_() {
@@ -523,7 +529,7 @@ function get_files_() {
   cd "$_pwd"
 }
 
-function get_proj_folders_() {
+function get_folders_() {
   local _pwd=$(pwd)
 
   if [[ -n "$1" ]]; then
@@ -808,38 +814,69 @@ function choose_prj_folder_() {
   fi
 
   local i="$1"
+  local header="$2"
+  local repo="$3"
+  local folder_path=""
 
-  print "${purple_cor} $2:${reset_cor}" >&2
+  print " ${purple_cor} ${header}:${reset_cor}" >&2
+
+  cd "${HOME:-/}"
 
   while true; do
-    local folder=""
-    folder="$(gum file --directory --height 7)"
-    if (( $? != 0 )); then
-      clear_last_line_
-      return 1;
-    fi
-    if [[ -z "$folder" ]]; then
-      return 1;
-    fi
-
-    local found=0
-    for j in {1..10}; do
-      if [[ $j -ne $i && "${Z_PROJECT_FOLDER[$j]}" == "$folder" ]]; then
-        found=1
-        print "project folder already in use, choose another one" >&2
+    if [[ -n "$folder_path" ]]; then
+      confirm_between_ "do you want to use: "$'\e[94m'${folder_path}$'\e[0m'" or keep browsing?" "browse" "use"
+      RET=$?
+      if (( RET == 130 )); then
+        return 130;
       fi
-    done
+      
+      if (( RET == 0 )); then
+        cd "$folder_path"
+      else
+        local found=0
+        for j in {1..10}; do
+          if [[ $j -ne $i && "${Z_PROJECT_FOLDER[$j]}" == "$folder_path" && -n "${Z_PROJECT_SHORT_NAME[$j]}"  ]]; then
+            found=1
+            clear_last_line_
+            print "  project folder already in use, choose another one" >&2
+            cd "$HOME"
+          fi
+        done
 
-    if (( found == 0 )); then
-      break;
+        if (( found == 0 )); then
+          clear_last_line_
+          echo "$folder_path"
+          return 0;
+        fi
+      fi
+    fi
+
+    folder_path=""
+    
+    if [[ -z ${(f)"$(get_folders_)"} ]]; then
+      cd "${HOME:-/}"
+    fi
+
+    local folder=""
+    folder="$(gum file --directory --height 14)"
+    if (( $? == 130 )); then
+        return 130;
+    fi
+
+    if [[ -n "$folder" ]]; then
+      folder_path="$folder"
+    else
+      return 1;
     fi
   done
 
-  echo "$folder"
+  return 1;
 }
 
 function input_path_() {
-  print "${purple_cor} $1:${reset_cor}" >&2
+  local header="$1"
+
+  print "${purple_cor} ${header}:${reset_cor}" >&2
 
   while true; do
     local typed_value=""
@@ -875,15 +912,17 @@ function input_repo_() {
           local selected_repo=$(choose_one_ "choose repository" 30 "${repos[@]}")
           if [[ -n "$selected_repo" ]]; then
             local mode=""
-            mode=$(confirm_between_ "ssh or https?" "ssh" "https" "s" "h")
-            if (( $? != 0 )); then
-              return 1;
+            mode=$(confirm_between_ "ssh or https?" "ssh" "https" 1)
+            if (( $? == 130 )); then
+              return 130;
             fi
+            local repo_uri=""
             if [[ "$mode" == "s" ]]; then
-              echo "git@github.com:${selected_repo}.git"
+              repo_uri="git@github.com:${selected_repo}.git"
             else
-              echo "https://github.com/${selected_repo}.git"
+              repo_uri="https://github.com/${selected_repo}.git"
             fi
+            echo "$repo_uri"
             return 0;
           fi
         fi
@@ -912,7 +951,8 @@ function input_repo_() {
        echo "$typed_repo"
        break;
     else
-      print " repository must be a valid ssh or https uri" >&2
+      clear_last_line_
+      print "  repository must be a valid ssh or https uri" >&2
     fi
   done
 }
@@ -1039,6 +1079,7 @@ function help() {
   print ""
   print " ${solid_blue_cor} pro ${reset_cor}\t\t = set project"
 
+  local i=0
   for i in {1..9}; do
     if [[ -n "${Z_PROJECT_FOLDER[$i]}" && -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       local short="${Z_PROJECT_SHORT_NAME[$i]}"
@@ -1300,7 +1341,7 @@ function check_prj_name_() {
     print " $error_msg" >&2
 
     if (( check_prj_name_is_s )); then
-      save_prj_name_ $@
+      save_prj_name_ $i "$name"
       if (( $? == 0 )); then
         return 0;
       fi
@@ -1337,10 +1378,11 @@ function get_prj_repo_() {
 
   if [[ -n "$error_msg" ]]; then
     repo=""
-    print " $error_msg" >&2
+    clear_last_line_
+    print "  $error_msg" >&2
 
     if (( get_prj_repo_is_s )); then
-      save_prj_repo_ $@
+      save_prj_repo_ $i
       if (( $? == 0 )); then
         if (( i > 0 )); then
           repo="$Z_PROJECT_REPO[$i]"
@@ -1353,7 +1395,7 @@ function get_prj_repo_() {
 
   if [[ -n "$repo" ]]; then
     if command -v gum &>/dev/null; then
-      gum spin --timeout=5s --title "checking repository uri..." -- git ls-remote "$repo"
+      gum spin --timeout=8s --title "checking repository uri..." -- git ls-remote "$repo"
     fi
     print_debug_ "get_prj_repo_: $repo"
     echo "$repo"
@@ -1377,7 +1419,7 @@ function get_prj_folder_() {
     error_msg="project folder is missing"
   else
     for j in {1..10}; do
-      if [[ $j -ne $i && "${Z_PROJECT_FOLDER[$j]}" == "$folder" ]]; then
+      if [[ $j -ne $i && "${Z_PROJECT_FOLDER[$j]}" == "$folder" && -n "${Z_PROJECT_SHORT_NAME[$j]}" ]]; then
         error_msg="project folder already in use, choose another one"
         break;
       fi
@@ -1386,10 +1428,11 @@ function get_prj_folder_() {
 
   if [[ -n "$error_msg" ]]; then
     folder=""
-    print " $error_msg" >&2
+    clear_last_line_
+    print "  $error_msg" >&2
 
     if (( get_prj_folder_is_s )); then
-      save_prj_folder_ $@
+      save_prj_folder_ $i
       if (( $? == 0 )); then
         print_debug_ "get_prj_folder_ Z_PROJECT_FOLDER_$i: $Z_PROJECT_FOLDER[$i]"
         if (( i > 0 )); then
@@ -1436,10 +1479,11 @@ function check_prj_pkg_manager_() {
   fi
 
   if [[ -n "$error_msg" ]]; then
+    clear_last_line_
     print " $error_msg" >&2
 
     if (( check_prj_pkg_manager_is_s )); then
-      save_pkg_manager_ $@
+      save_pkg_manager_ $i "$pkg_manager"
       if (( $? == 0 )); then
         return 0;
       fi
@@ -1528,21 +1572,26 @@ function save_prj_name_really_() {
   print_debug_ "save_prj_name_really_ index: $i - name: $name"
 
   if (( i > 0 )); then
+    if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      unset -f "${Z_PROJECT_SHORT_NAME[$i]}" &>/dev/null
+    fi
+    
     update_config_ $i "Z_PROJECT_SHORT_NAME" "$name"
+
     Z_PROJECT_SHORT_NAME[$i]="$name"
-
-    print " project saved: $name" >&2
-
-    eval "
-      function ${name}() {
-        z_project_handler_ $i \"\$@\"
-      }
-    "
-
-    print " try running: ${yellow_cor}${name}${reset_cor}" >&2
   else
+    if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+      unset -f "$Z_CURRENT_PROJECT_SHORT_NAME" &>/dev/null
+    fi
+
     Z_CURRENT_PROJECT_SHORT_NAME="$name"
   fi
+
+  eval "
+    function ${name}() {
+      z_project_handler_ $i \"\$@\"
+    }
+  "
 
   SAVE_PRJ_NAME_TEMP=""
 }
@@ -1558,14 +1607,14 @@ function save_prj_name_() {
   typed_name=$(input_name_ "type your project short name" "$name" 10)
   clear_last_line_
 
-  print_debug_ "save_prj_name_ index: $i - name: $name - typed_name: $typed_name - is_a: $save_prj_name_is_a - is_e: $save_prj_name_is_e"
+  print_debug_ "save_prj_name_ index: $i - name: $name - typed_name: "$typed_name" - is_a: $save_prj_name_is_a - is_e: $save_prj_name_is_e"
   
   if [[ -n "$typed_name" ]]; then
     check_prj_name_ $i "$typed_name"
     if (( $? == 0 )); then
       # save the project name after all other answers
       SAVE_PRJ_NAME_TEMP="$typed_name"
-      print "  $typed_name" >&2
+      print "  project name: $typed_name" >&2
       return 0; # ok if it didn't save to config
     fi
   fi
@@ -1573,27 +1622,134 @@ function save_prj_name_() {
   return 1;
 }
 
+function choose_mode_() {
+  local name="${1:-it}"
+
+  confirm_between_ "how do you prefer to manage $name: multiple or single mode?" "multiple" "single" $2
+}
+
+function save_prj_mode_() {
+  eval "$(parse_flags_ "save_prj_mode_" "ae" "$@")"
+
+  local i="$1"
+  local name="${2:-${Z_PROJECT_SHORT_NAME[$i]}}"
+
+  choose_mode_ "$name"
+  RET=$?
+  if (( RET == 130 )); then
+    return 130;
+  fi
+
+  local single_mode="$RET"
+
+  print_debug_ "save_prj_mode_ index: $i - name: $name - single_mode: $single_mode"
+
+  if (( i > 0 )); then
+    update_config_ $i "Z_PROJECT_SINGLE_MODE" "$single_mode"
+    Z_PROJECT_SINGLE_MODE[$i]="$single_mode"
+  else
+    Z_CURRENT_PROJECT_MODE="$single_mode"
+  fi
+  
+  if (( single_mode )); then
+    print "  project mode: single" >&2
+  else
+    print "  project mode: multiple" >&2
+  fi
+
+  return 0;
+}
+
 function save_prj_folder_() {
-  eval "$(parse_flags_ "save_prj_folder_" "ae" "$@")"
+  eval "$(parse_flags_ "save_prj_folder_" "arse" "$@")"
 
   local i="$1"
   local folder="${2:-$Z_PROJECT_FOLDER[$i]}"
 
-  folder=$(choose_prj_folder_ $i "choose your project folder")
-  #clear_last_line_
+  local repo="$Z_PROJECT_REPO[$i]"
+  local single_mode="$Z_PROJECT_SINGLE_MODE[$i]"
 
-  print_debug_ "save_prj_folder_ index: $i - folder: $folder - is_a: $save_prj_folder_is_a - is_e: $save_prj_folder_is_e"
+  print_debug_ "save_prj_folder_ index: $i - folder: "$folder" - is_s: $save_prj_folder_is_s - is_r: $save_prj_folder_is_r"
+
+  local chose_folder=""
+
+  # local parent_folder="$(dirname "$folder")"
+
+  local handle_folder_processing=0
 
   if [[ -n "$folder" ]]; then
-    folder=$(get_prj_folder_ $i "$folder")
-    if [[ -n "$folder" ]]; then
-      if (( i > 0 )); then
-        update_config_ $i "Z_PROJECT_FOLDER" "$folder"
-        Z_PROJECT_FOLDER[$i]="$folder"
-      else
-        Z_CURRENT_PROJECT_FOLDER="$folder"
+    if (( ! save_prj_folder_is_r && ! save_prj_folder_is_s )); then
+      confirm_from_ "use exiting project folder: "$'\e[94m'${folder}$'\e[0m'"?"
+      RET=$?
+      if (( RET == 130 )); then
+        return 130;
       fi
-      print "  $folder" >&2
+      if (( RET == 0 )); then
+        # if multiple mode, we need to process the folder
+        if (( ! single_mode )); then
+          if [[ -d "$folder" && -n "$(ls -A "$folder" 2>/dev/null)" ]]; then
+            mv -f "$folder" "${folder}_$(date +"%Y%m%d%H%M%S")" &>/dev/null
+            mkdir -p "$folder" &>/dev/null
+          fi
+          single_mode=1 # prevent processing again
+        fi
+        chose_folder="$folder"
+      fi
+    elif (( save_prj_folder_is_s )); then
+      single_mode=1 # prevent processing again
+      chose_folder="$folder"
+    fi
+  fi
+
+  local header=""
+  if (( single_mode && save_prj_folder_is_r )); then
+    header="select the folder where your project was cloned"
+  else
+    handle_folder_processing=1
+    header="choose a parent folder in which to git clone from (project will be a subfolder)"
+  fi
+
+  if [[ -z "$chose_folder" ]]; then
+    chose_folder=$(choose_prj_folder_ $i "$header")
+    #clear_last_line_
+  fi
+
+  print_debug_ "save_prj_folder_ choose folder: $chose_folder"
+
+  if [[ -n "$chose_folder" ]]; then
+    local proj_folder="$chose_folder"
+
+    if (( handle_folder_processing )); then
+      proj_folder="${repo%.git}"
+      proj_folder="${proj_folder##*[:/]}"
+      proj_folder="${chose_folder}/${proj_folder}"
+    fi
+
+    proj_folder=$(get_prj_folder_ $i "$proj_folder")
+
+    if [[ -n "$proj_folder" ]]; then
+      if (( handle_folder_processing )); then
+        if [[ -d "$proj_folder" && -n "$(ls -A "$proj_folder" 2>/dev/null)" ]]; then
+          mv -f "$proj_folder" "${proj_folder}_$(date +"%Y%m%d%H%M%S")" &>/dev/null
+          mkdir -p "$proj_folder" &>/dev/null
+        fi
+      fi
+
+      if (( i > 0 )); then
+        update_config_ $i "Z_PROJECT_FOLDER" "$proj_folder"
+        Z_PROJECT_FOLDER[$i]="$proj_folder"
+      else
+        Z_CURRENT_PROJECT_FOLDER="$proj_folder"
+      fi
+
+      if (( ! save_prj_folder_is_s )); then
+        if (( handle_folder_processing )); then
+          print "  parent folder: $chose_folder" >&2
+          print "  project folder: $proj_folder" >&2
+        else
+          print "  project folder: $proj_folder" >&2
+        fi
+      fi
       return 0; # ok if it didn't save to config
     fi
   fi
@@ -1606,13 +1762,55 @@ function save_prj_repo_() {
 
   local i="$1"
   local repo="${2:-$Z_PROJECT_REPO[$i]}"
+  local single_mode="${2:-$Z_PROJECT_SINGLE_MODE[$i]}"
+
+  print_debug_ "save_prj_repo_ index: $i - repo: $repo - is_a: $save_prj_repo_is_a - is_e: $save_prj_repo_is_e"
 
   local typed_repo=""
-  typed_repo=$(input_repo_ "the repository uri (ssh or https)" "$repo")
-  # clear_last_line_
+
+  if [[ -n "$repo" ]]; then
+    confirm_from_ "use repository uri: "$'\e[94m'${repo}$'\e[0m'"?"
+    RET=$?
+    if (( RET == 130 )); then
+      return 130;
+    fi
+    if (( RET == 0 )); then
+      typed_repo="$repo"
+    fi
+  fi
+
+  if [[ -z "$typed_repo" ]] && (( single_mode )); then
+    confirm_from_ "have you already cloned the project?"
+    RET=$?
+    if (( RET == 130 )); then
+      return 130;
+    fi
+    if (( RET == 0 )); then # yes
+      while true; do
+        save_prj_folder_ -r $i
+        if (( $? != 0 )); then return 1; fi
+        local folder=""
+        if (( i > 0 )); then
+          folder=${Z_PROJECT_FOLDER[$i]}
+        else
+          folder=$Z_CURRENT_PROJECT_FOLDER
+        fi
+        typed_repo="$(cd "$folder" && git remote get-url origin 2>/dev/null)"
+        # if (( $? != 0 )) || [[ -z "$typed_repo" ]]; then
+        #   print "  not able to check for the repository uri" >&2
+        # fi
+        break;
+      done
+    fi
+  fi
+
+  if [[ -z "$typed_repo" ]]; then
+    typed_repo=$(input_repo_ "the repository uri (ssh or https)" "$repo")
+    clear_last_line_
+  fi
   
   if [[ -n "$typed_repo" ]]; then
-    get_prj_repo_ $i "$typed_repo"
+    get_prj_repo_ $i "$typed_repo" 1>/dev/null
     if (( $? == 0 )); then
       if (( i > 0 )); then
         update_config_ $i "Z_PROJECT_REPO" "$typed_repo"
@@ -1620,7 +1818,7 @@ function save_prj_repo_() {
       else
         Z_CURRENT_PROJECT_REPO="$typed_repo"
       fi
-      print "  $typed_repo" >&2
+      print "  project repository: $typed_repo" >&2
       return 0; # ok if it didn't save to config
     fi
   fi
@@ -1642,7 +1840,7 @@ function save_pkg_manager_() {
       else
         Z_CURRENT_PACKAGE_MANAGER="$choose_pkg"
       fi
-      print "  $choose_pkg" >&2
+      print "  package manager: $choose_pkg" >&2
       return 0;
     fi
   fi
@@ -1660,51 +1858,58 @@ function save_prj_() {
     return 1;
   fi
 
-  local p="${i}th"
+  # local p="${i}th"
 
-  case $i in
-    1) p="1st" ;;
-    2) p="2nd" ;;
-    3) p="3rd" ;;
-  esac
+  # case $i in
+  #   1) p="1st" ;;
+  #   2) p="2nd" ;;
+  #   3) p="3rd" ;;
+  # esac
 
   if (( save_prj_is_e )); then
-    help_line_ "${pink_cor} editing project: $Z_PROJECT_SHORT_NAME[$i]${reset_cor}"
+    help_line_ "editing project: $Z_PROJECT_SHORT_NAME[$i]" "${solid_magenta_cor}"
   else
-    help_line_ "${pink_cor} adding a new project${reset_cor}"
+    help_line_ "adding a new project" "${solid_magenta_cor}"
   fi
 
-  save_prj_name_ $i $2
+  save_prj_name_ $i "$2"
   if (( $? != 0 )); then
     return 1;
   fi
 
-  save_prj_folder_ $i
+  save_prj_mode_ $i "$2"
+  if (( $? != 0 )); then
+    return 1;
+  fi
+
+  save_prj_repo_ $i
+  if (( $? != 0 )); then
+    return 1;
+  fi
+
+  save_prj_folder_ -s $i
   if (( $? != 0 )); then
     return 1;
   fi
 
   save_pkg_manager_ $i
   if (( $? != 0 )); then
-    save_prj_name_really_ $i
-    return 1;
-  fi
-
-  save_prj_repo_ $i
-  if (( $? != 0 )); then
-    save_prj_name_really_ $i
     return 1;
   fi
 
   # now it's time to save the project name
   save_prj_name_really_ $i
 
+  help_line_ "" "${solid_magenta_cor}"
+  print "  project saved!" >&2
+  print "  try running: ${yellow_cor}${Z_PROJECT_SHORT_NAME[$i]}${reset_cor}" >&2
+
   return 0;
 }
 
 # end of save project data to config file =========================================
 
-set_aliases_() {
+unset_aliases_() {
   unalias ncov &>/dev/null
   unalias ntest &>/dev/null
   unalias ne2e &>/dev/null
@@ -1729,19 +1934,21 @@ set_aliases_() {
   unalias be2eui &>/dev/null
   unalias btestw &>/dev/null 
 
-  unset i &>/dev/null
-  unset build &>/dev/null
-  unset deploy &>/dev/null
-  unset fix &>/dev/null
-  unset format &>/dev/null
-  unset ig &>/dev/null
-  unset lint &>/dev/null
-  unset rdev &>/dev/null
-  unset tsc &>/dev/null
-  unset sb &>/dev/null
-  unset sbb &>/dev/null
-  unset start &>/dev/null
+  unset -f i &>/dev/null
+  unset -f build &>/dev/null
+  unset -f deploy &>/dev/null
+  unset -f fix &>/dev/null
+  unset -f format &>/dev/null
+  unset -f ig &>/dev/null
+  unset -f lint &>/dev/null
+  unset -f rdev &>/dev/null
+  unset -f tsc &>/dev/null
+  unset -f sb &>/dev/null
+  unset -f sbb &>/dev/null
+  unset -f start &>/dev/null
+}
 
+set_aliases_() {
   check_prj_pkg_manager_ -s 0 "$Z_CURRENT_PACKAGE_MANAGER"
   if [[ -z "$Z_CURRENT_PACKAGE_MANAGER" ]]; then
     return 1;
@@ -1783,9 +1990,13 @@ set_aliases_() {
 function remove_prj_() {
   i="$1"
 
+  unset_aliases_
+  unset -f "$proj_arg" &>/dev/null
+
   Z_PROJECT_SHORT_NAME[$i]=""
   Z_PROJECT_FOLDER[$i]=""
   Z_PROJECT_REPO[$i]=""
+  Z_PROJECT_SINGLE_MODE[$i]=""
   Z_PACKAGE_MANAGER[$i]=""
   Z_CODE_EDITOR[$i]=""
   Z_CLONE[$i]=""
@@ -1813,6 +2024,7 @@ function remove_prj_() {
   update_config_ $i "Z_PROJECT_SHORT_NAME" ""
   update_config_ $i "Z_PROJECT_FOLDER" "" >/dev/null
   update_config_ $i "Z_PROJECT_REPO" "" >/dev/null
+  update_config_ $i "Z_PROJECT_SINGLE_MODE" "" >/dev/null
   update_config_ $i "Z_PACKAGE_MANAGER" "" >/dev/null
   update_config_ $i "Z_CODE_EDITOR" "" >/dev/null
   update_config_ $i "Z_CLONE" "" >/dev/null
@@ -1838,35 +2050,42 @@ function remove_prj_() {
   update_config_ $i "Z_PRINT_README" "" >/dev/null
 }
 
+function save_current_proj_() {
+  local i=$1
+
+  Z_CURRENT_PROJECT_SHORT_NAME="${Z_PROJECT_SHORT_NAME[$i]}"
+  Z_CURRENT_PROJECT_FOLDER="${Z_PROJECT_FOLDER[$i]}"
+  Z_CURRENT_PROJECT_REPO="${Z_PROJECT_REPO[$i]}"
+  Z_CURRENT_PROJECT_MODE="${Z_PROJECT_SINGLE_MODE[$i]}"
+  Z_CURRENT_PACKAGE_MANAGER="${Z_PACKAGE_MANAGER[$i]}"
+  Z_CURRENT_CODE_EDITOR="${Z_CODE_EDITOR[$i]}"
+  Z_CURRENT_CLONE="${Z_CLONE[$i]}"
+  Z_CURRENT_SETUP="${Z_SETUP[$i]}"
+  Z_CURRENT_RUN="${Z_RUN[$i]}"
+  Z_CURRENT_RUN_STAGE="${Z_RUN_STAGE[$i]}"
+  Z_CURRENT_RUN_PROD="${Z_RUN_PROD[$i]}"
+  Z_CURRENT_PRO="${Z_PRO[$i]}"
+  Z_CURRENT_TEST="${Z_TEST[$i]}"
+  Z_CURRENT_COV="${Z_COV[$i]}"
+  Z_CURRENT_TEST_WATCH="${Z_TEST_WATCH[$i]}"
+  Z_CURRENT_E2E="${Z_E2E[$i]}"
+  Z_CURRENT_E2EUI="${Z_E2EUI[$i]}"
+  Z_CURRENT_PR_TEMPLATE="${Z_PR_TEMPLATE[$i]}"
+  Z_CURRENT_PR_REPLACE="${Z_PR_REPLACE[$i]}"
+  Z_CURRENT_PR_APPEND="${Z_PR_APPEND[$i]}"
+  Z_CURRENT_PR_RUN_TEST="${Z_PR_RUN_TEST[$i]}"
+  Z_CURRENT_GHA_INTERVAL="${Z_GHA_INTERVAL[$i]}"
+  Z_CURRENT_COMMIT_ADD="${Z_COMMIT_ADD[$i]}"
+  Z_CURRENT_GHA_WORKFLOW="${Z_GHA_WORKFLOW[$i]}"
+  Z_CURRENT_PUSH_ON_REFIX="${Z_PUSH_ON_REFIX[$i]}"
+  Z_CURRENT_DEFAULT_BRANCH="${Z_DEFAULT_BRANCH[$i]}"
+  Z_CURRENT_PRINT_README="${Z_PRINT_README[$i]}"
+}
+
 function clear_curr_prj_() {
   load_config_entry_
   
-  Z_CURRENT_PROJECT_SHORT_NAME="${Z_PROJECT_SHORT_NAME[0]}"
-  Z_CURRENT_PROJECT_FOLDER="${Z_PROJECT_FOLDER[0]}"
-  Z_CURRENT_PROJECT_REPO="${Z_PROJECT_REPO[0]}"
-  Z_CURRENT_PACKAGE_MANAGER="${Z_PACKAGE_MANAGER[0]}"
-  Z_CURRENT_CODE_EDITOR="${Z_CODE_EDITOR[0]}"
-  Z_CURRENT_CLONE="${Z_CLONE[0]}"
-  Z_CURRENT_SETUP="${Z_SETUP[0]}"
-  Z_CURRENT_RUN="${Z_RUN[0]}"
-  Z_CURRENT_RUN_STAGE="${Z_RUN_STAGE[0]}"
-  Z_CURRENT_RUN_PROD="${Z_RUN_PROD[0]}"
-  Z_CURRENT_PRO="${Z_PRO[0]}"
-  Z_CURRENT_TEST="${Z_TEST[0]}"
-  Z_CURRENT_COV="${Z_COV[0]}"
-  Z_CURRENT_TEST_WATCH="${Z_TEST_WATCH[0]}"
-  Z_CURRENT_E2E="${Z_E2E[0]}"
-  Z_CURRENT_E2EUI="${Z_E2EUI[0]}"
-  Z_CURRENT_PR_TEMPLATE="${Z_PR_TEMPLATE[0]}"
-  Z_CURRENT_PR_REPLACE="${Z_PR_REPLACE[0]}"
-  Z_CURRENT_PR_APPEND="${Z_PR_APPEND[0]}"
-  Z_CURRENT_PR_RUN_TEST="${Z_PR_RUN_TEST[0]}"
-  Z_CURRENT_GHA_INTERVAL="${Z_GHA_INTERVAL[0]}"
-  Z_CURRENT_COMMIT_ADD="${Z_COMMIT_ADD[0]}"
-  Z_CURRENT_GHA_WORKFLOW="${Z_GHA_WORKFLOW[0]}"
-  Z_CURRENT_PUSH_ON_REFIX="${Z_CURRENT_PUSH_ON_REFIX[0]}"
-  Z_CURRENT_DEFAULT_BRANCH="${Z_DEFAULT_BRANCH[0]}"
-  Z_CURRENT_PRINT_README="${Z_PRINT_README[0]}"
+  save_current_proj_ 0
 }
 
 function get_prj_index_() {
@@ -1876,6 +2095,7 @@ function get_prj_index_() {
     return 1;
   fi
 
+  local i=0
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       echo "$i"
@@ -1900,6 +2120,7 @@ function print_current_proj() {
   print " Z_PROJECT_SHORT_NAME_$i: ${Z_PROJECT_SHORT_NAME[$i]}" >&1
   print " Z_PROJECT_FOLDER_$i: ${Z_PROJECT_FOLDER[$i]}" >&1
   print " Z_PROJECT_REPO_$i: ${Z_PROJECT_REPO[$i]}" >&1
+  print " Z_PROJECT_MODE_$i: ${Z_PROJECT_SINGLE_MODE[$i]}" >&1
   print " Z_PACKAGE_MANAGER_$i: ${Z_PACKAGE_MANAGER[$i]}" >&1
   print " Z_RUN_$i: ${Z_RUN[$i]}" >&1
   print " Z_RUN_STAGE_$i: ${Z_RUN_STAGE[$i]}" >&1
@@ -1932,6 +2153,7 @@ function print_current_proj() {
 }
 
 function which_pro_index_pwd_() {
+  local i=0
   for i in {1..9}; do
     if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" && -n "${Z_PROJECT_FOLDER[$i]}" ]]; then
       if [[ $(PWD) == $Z_PROJECT_FOLDER[$i]* ]]; then
@@ -1946,6 +2168,7 @@ function which_pro_index_pwd_() {
 }
 
 function which_pro_pwd_() {
+  local i=0
   for i in {1..9}; do
     if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" && -n "${Z_PROJECT_FOLDER[$i]}" ]]; then
       if [[ $(PWD) == $Z_PROJECT_FOLDER[$i]* ]]; then
@@ -2021,7 +2244,11 @@ function is_git_repo_() {
   local folder="${1:-$PWD}"
 
   if [[ ! -d "$folder" ]]; then
-    return 1  # Not a directory
+    return 1;
+  fi
+
+  if [[ -d "$folder/.git" ]]; then
+    return 0;
   fi
 
   ( git -C "$folder" rev-parse --is-inside-work-tree &>/dev/null )
@@ -2082,9 +2309,14 @@ function pro() {
     if [[ -n "${Z_PROJECT_SHORT_NAME[*]}" ]]; then
       print ""
       print -n " projects: ${blue_cor} "
+      local i=0
       for i in {1..9}; do
-        if [[ -n ${Z_PROJECT_SHORT_NAME[$i]} ]]; then
-          [[ $i -gt 1 ]] && print -n "${reset_cor},${blue_cor} "; print -n "${Z_PROJECT_SHORT_NAME[$i]}"
+        if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+          print -n "${Z_PROJECT_SHORT_NAME[$i]}"
+          local j=$(( i + 1 ))
+          if [[ -n "${Z_PROJECT_SHORT_NAME[$j]}" ]]; then
+            print -n ", "
+          fi
         fi
       done
       print "${reset_cor}"
@@ -2102,6 +2334,7 @@ function pro() {
       return 1;
     fi
 
+    local i=0
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         print_current_proj $i
@@ -2123,6 +2356,7 @@ function pro() {
       return 1;
     fi
 
+    local i=0
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         save_prj_ -e $i $proj_arg
@@ -2137,6 +2371,7 @@ function pro() {
   
   if (( pro_is_a )); then
     # add project
+    local i=0
     for i in {1..9}; do
       if [[ -z "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         save_prj_ -a $i $proj_arg
@@ -2159,15 +2394,17 @@ function pro() {
       return 1;
     fi
 
+    local i=0
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         remove_prj_ $i
         if (( $? == 0 )); then
-          unset -f $proj_arg &>/dev/null
           print " project deleted: $proj_arg"
         fi
+        
         if [[ "$proj_arg" == "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
           clear_curr_prj_
+          activate_pro_
         fi
         return 0;
       fi
@@ -2186,6 +2423,7 @@ function pro() {
       return 1;
     fi
 
+    local i=0
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         # unset aliases
@@ -2216,6 +2454,7 @@ function pro() {
 
   local found=0
   # Check if the project name matches one of the configured projects
+  local i=0
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       found=$i
@@ -2245,32 +2484,7 @@ function pro() {
   print_debug_ "project found $i: $proj_arg"
 
   # set the current project
-  Z_CURRENT_PROJECT_SHORT_NAME="${Z_PROJECT_SHORT_NAME[$i]}"
-  Z_CURRENT_PROJECT_FOLDER="${Z_PROJECT_FOLDER[$i]}"
-  Z_CURRENT_PROJECT_REPO="${Z_PROJECT_REPO[$i]}"
-  Z_CURRENT_PACKAGE_MANAGER="${Z_PACKAGE_MANAGER[$i]}"
-  Z_CURRENT_CODE_EDITOR="${Z_CODE_EDITOR[$i]}"
-  Z_CURRENT_CLONE="${Z_CLONE[$i]}"
-  Z_CURRENT_SETUP="${Z_SETUP[$i]}"
-  Z_CURRENT_RUN="${Z_RUN[$i]}"
-  Z_CURRENT_RUN_STAGE="${Z_RUN_STAGE[$i]}"
-  Z_CURRENT_RUN_PROD="${Z_RUN_PROD[$i]}"
-  Z_CURRENT_PRO="${Z_PRO[$i]}"
-  Z_CURRENT_TEST="${Z_TEST[$i]}"
-  Z_CURRENT_COV="${Z_COV[$i]}"
-  Z_CURRENT_TEST_WATCH="${Z_TEST_WATCH[$i]}"
-  Z_CURRENT_E2E="${Z_E2E[$i]}"
-  Z_CURRENT_E2EUI="${Z_E2EUI[$i]}"
-  Z_CURRENT_PR_TEMPLATE="${Z_PR_TEMPLATE[$i]}"
-  Z_CURRENT_PR_REPLACE="${Z_PR_REPLACE[$i]}"
-  Z_CURRENT_PR_APPEND="${Z_PR_APPEND[$i]}"
-  Z_CURRENT_PR_RUN_TEST="${Z_PR_RUN_TEST[$i]}"
-  Z_CURRENT_GHA_INTERVAL="${Z_GHA_INTERVAL[$i]}"
-  Z_CURRENT_COMMIT_ADD="${Z_COMMIT_ADD[$i]}"
-  Z_CURRENT_GHA_WORKFLOW="${Z_GHA_WORKFLOW[$i]}"
-  Z_CURRENT_PUSH_ON_REFIX="${Z_PUSH_ON_REFIX[$i]}"
-  Z_CURRENT_DEFAULT_BRANCH="${Z_DEFAULT_BRANCH[$i]}"
-  Z_CURRENT_PRINT_README="${Z_PRINT_README[$i]}"
+  save_current_proj_ $i
 
   (( is_d )) && print_current_proj $i
 
@@ -2285,6 +2499,7 @@ function pro() {
       eval "$Z_CURRENT_PRO"
     fi
 
+    unset_aliases_
     set_aliases_
   fi
 
@@ -2343,6 +2558,7 @@ function refix() {
 
   if confirm_from_ "fix done, push now?"; then
     if confirm_from_ "save this preference and don't ask again?"; then
+      local i=0
       for i in {1..9}; do
         if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
           update_config_ $i "Z_PUSH_ON_REFIX" 1
@@ -2832,6 +3048,7 @@ function pr() {
       fi
 
       if confirm_from_ "save this preference and don't ask again?"; then
+        local i=0
         for i in {1..9}; do
           if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
             update_config_ $i "Z_PR_RUN_TEST" 1
@@ -2961,6 +3178,7 @@ function run() {
   fi
 
   if [[ -n "$proj_arg" ]]; then
+    local i=0
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
@@ -2997,8 +3215,8 @@ function run() {
     if (( $? == 0 )); then
       folder_to_run="$proj_folder"
     else
-      if [[ -n ${(f)"$(get_proj_folders_ "$proj_folder")"} ]]; then
-        local folders=($(get_proj_folders_ "$proj_folder"))
+      if [[ -n ${(f)"$(get_folders_ "$proj_folder")"} ]]; then
+        local folders=($(get_folders_ "$proj_folder"))
         folder_to_run=($(choose_auto_one_ "choose folder to run" "${folders[@]}"))
         if [[ -z "$folder_to_run" ]]; then
           return 0;
@@ -3059,6 +3277,7 @@ function setup() {
   local _setup=${Z_CURRENT_SETUP:-$Z_CURRENT_PACKAGE_MANAGER $([[ $Z_CURRENT_PACKAGE_MANAGER == "yarn" ]] && echo "" || echo "run ")setup}
 
   if [[ -n "$proj_arg" ]]; then
+    local i=0
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
@@ -3093,8 +3312,8 @@ function setup() {
     if (( $? == 0 )); then
       folder_to_setup="$proj_folder"
     else
-      if [[ -n ${(f)"$(get_proj_folders_ "$proj_folder")"} ]]; then
-        folders=($(get_proj_folders_ "$proj_folder"))
+      if [[ -n ${(f)"$(get_folders_ "$proj_folder")"} ]]; then
+        folders=($(get_folders_ "$proj_folder"))
         folder_to_setup=($(choose_auto_one_ "choose folder to setup" "${folders[@]}"))
         if [[ -z "$folder_to_setup" ]]; then
           return 0;
@@ -3146,6 +3365,7 @@ function revs() {
 
   if [[ -n "$1" ]]; then
     local valid_project=0
+    local i=0
     for i in {1..9}; do
       if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         proj_arg="${1:-$Z_CURRENT_PROJECT_SHORT_NAME}"
@@ -3162,7 +3382,7 @@ function revs() {
   fi
 
   local proj_folder=""
-
+  local i=0
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
@@ -3251,6 +3471,7 @@ function rev() {
   local _clone=""
   local code_editor="$Z_CURRENT_PROJECT_REPO"
 
+  local i=0
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       proj_repo="$(get_prj_repo_ -s $i)"
@@ -3482,6 +3703,7 @@ function clone() {
     branch_arg="$2"
   elif [[ -n "$1" ]]; then
     valid_project=0
+    local i=0
     for i in {1..9}; do
       if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         proj_arg="$1"
@@ -3494,6 +3716,7 @@ function clone() {
     fi
   else
     pro_choices=()
+    local i=0
     for i in {1..9}; do
       if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         pro_choices+=("${Z_PROJECT_SHORT_NAME[$i]}")
@@ -3512,6 +3735,7 @@ function clone() {
   local default_branch=""
   local print_readme=1
 
+  local i=0
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       proj_repo="$(get_prj_repo_ -s $i)"
@@ -3562,9 +3786,9 @@ function clone() {
 
   if [[ -z "$branch_arg" && -z "$work_mode" ]]; then
     # ask user if they want to single project mode, or multiple mode
-    work_mode=$(confirm_between_ "how do you prefer to manage $proj_arg: single or multiple repositories?" "single" "multiple" "s" "m")
-    if (( $? != 0 )); then
-      return 0;
+    work_mode=$(choose_mode_ $proj_arg 1)
+    if (( $? == 130 )); then
+      return 130;
     fi
 
     user_selected_mode=1;
@@ -3659,6 +3883,7 @@ function clone() {
     fi
 
     if confirm_from_ "save '$default_branch' as the default branch for $proj_arg and don't ask again?"; then
+      local i=0
       for i in {1..9}; do
         if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
           update_config_ $i "Z_DEFAULT_BRANCH" "$default_branch"
@@ -3980,6 +4205,7 @@ function recommit() {
         git add .
 
         if confirm_from_ "save this preference and don't ask again?"; then
+          local i=0
           for i in {1..9}; do
             if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
               update_config_ $i "Z_COMMIT_ADD" 1
@@ -4035,6 +4261,7 @@ function commit() {
         git add .
 
         if confirm_from_ "save this preference and don't ask again?"; then
+          local i=0
           for i in {1..9}; do
             if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
               update_config_ $i "Z_COMMIT_ADD" 1
@@ -4483,6 +4710,7 @@ function get_prj_for_git_() {
 
   if [[ -z "$folder" ]]; then
     setopt null_glob
+    local i=0
     for i in */; do
       if is_git_repo_ "${i%/}"; then
         folder="$proj_folder/${i%/}"
@@ -4754,6 +4982,7 @@ function gha() {
 
   # Parse arguments
   if [[ -n "$2" ]]; then
+    local i=0
     for i in {1..9}; do
       if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         proj_arg="$1"
@@ -4764,6 +4993,7 @@ function gha() {
       workflow_arg="$2"
     fi
   elif [[ -n "$1" ]]; then
+    local i=0
     for i in {1..9}; do
       if [[ "$1" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         proj_arg="$1"
@@ -4784,6 +5014,7 @@ function gha() {
   local gha_interval=""
   local gha_workflow=""
 
+  local i=0
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
@@ -4876,6 +5107,7 @@ function gha() {
   if (( RET == 0 && ask_save )); then
     # ask to save the workflow
     if confirm_from_ "would you like to save \"$workflow_arg\" as the default workflow for this project?"; then
+      local i=0
       for i in {1..9}; do
         if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
           Z_GHA_WORKFLOW[$i]="$workflow_arg"
@@ -5367,6 +5599,7 @@ function delete_pump_working_(){
   fi
 
   if [[ "$item" == "$pump_working_branch" ]]; then
+    local i=0
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         rm -f "${PUMP_WORKING_FILE[$i]}"
@@ -5440,6 +5673,7 @@ function load_config_entry_() {
 
   keys=(
     Z_PROJECT_REPO
+    Z_PROJECT_SINGLE_MODE
     Z_PACKAGE_MANAGER
     Z_CODE_EDITOR
     Z_CLONE
@@ -5471,6 +5705,9 @@ function load_config_entry_() {
     # If the value is not set, provide default values for specific keys
     if [[ -z "$value" ]]; then
       case "$key" in
+        Z_PROJECT_SINGLE_MODE)
+          value="0"
+          ;;
         Z_PACKAGE_MANAGER)
           value="npm"
           ;;
@@ -5520,6 +5757,9 @@ function load_config_entry_() {
     case "$key" in
       Z_PROJECT_REPO)
         Z_PROJECT_REPO[$i]="$value"
+        ;;
+      Z_PROJECT_SINGLE_MODE)
+        Z_PROJECT_SINGLE_MODE[$i]="$value"
         ;;
       Z_PACKAGE_MANAGER)
         Z_PACKAGE_MANAGER[$i]="$value"
@@ -5598,6 +5838,7 @@ function load_config_entry_() {
 function load_config_() {
   load_config_entry_
   # Iterate over the first 10 project configurations
+  local i=0
   for i in {1..9}; do
     local short_name=$(sed -n "s/^Z_PROJECT_SHORT_NAME_${i}=\\([^ ]*\\)/\\1/p" "$PUMP_CONFIG_FILE")
     [[ -z "$short_name" ]] && continue  # Skip if not defined
@@ -5625,59 +5866,66 @@ PUMP_PRO_FILE="$(dirname "$0")/.pump"
 
 # auto pro ===============================================================
 # pro pwd
-print_debug_ "pro pwd"
-pro -f pwd &>/dev/null
-if (( $? != 0 )); then
-  # Read the current project short name from the PUMP_PRO_FILE if it exists
-  pump_pro_file_value=""
-  if [[ -f "$PUMP_PRO_FILE" ]]; then
-    pump_pro_file_value=$(<"$PUMP_PRO_FILE")
+function activate_pro_() {
+  print_debug_ "pro pwd"
 
-    if [[ -n "$pump_pro_file_value" ]]; then
-      for i in {1..9}; do
-        if [[ "$pump_pro_file_value" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          check_prj_name_ $i "$pump_pro_file_value" >/dev/null
-          if (( $? != 0 )); then
-            rm -f "$PUMP_PRO_FILE" &>/dev/null
-            pump_pro_file_value=""
+  pro -f pwd &>/dev/null
+  if (( $? != 0 )); then
+    # Read the current project short name from the PUMP_PRO_FILE if it exists
+    pump_pro_file_value=""
+    if [[ -f "$PUMP_PRO_FILE" ]]; then
+      pump_pro_file_value=$(<"$PUMP_PRO_FILE")
+
+      if [[ -n "$pump_pro_file_value" ]]; then
+        local i=0
+        for i in {1..9}; do
+          if [[ "$pump_pro_file_value" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+            check_prj_name_ $i "$pump_pro_file_value" >/dev/null
+            if (( $? != 0 )); then
+              rm -f "$PUMP_PRO_FILE" &>/dev/null
+              pump_pro_file_value=""
+            fi
+            break;
           fi
-          break;
+        done
+      fi
+    fi
+
+    # Create an array of project names to loop through
+    project_names=("$pump_pro_file_value")
+
+    # Loop through 1 to 10 to add additional project names to the array
+    local i=0
+    for i in {1..9}; do
+      if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        if [[ ! " ${project_names[@]} " =~ " ${Z_PROJECT_SHORT_NAME[$i]} " ]]; then
+          project_names+=("${Z_PROJECT_SHORT_NAME[$i]}")
         fi
-      done
-    fi
+      fi
+    done
+    
+    # Remove any empty values in the array (e.g., if $pump_pro_file_value is empty)
+    project_names=("${project_names[@]/#/}")
+
+    #print "project_names: ${project_names[@]}" >&1
+
+    # Loop over the projects to check and execute them
+    for project in "${project_names[@]}"; do
+      if [[ -n "$project" ]]; then
+        #print " pro project: $project" >&1
+        pro -f "$project" # &>/dev/null
+        if (( $? == 0 )); then
+          #print "good: $project" >&1
+          break  # Exit loop once a valid project is found and executed successfully
+        else
+          #print "bad: $project" >&1
+        fi
+      fi
+    done
   fi
+}
 
-  # Create an array of project names to loop through
-  project_names=("$pump_pro_file_value")
-
-  # Loop through 1 to 10 to add additional project names to the array
-  for i in {1..9}; do
-    if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-      if [[ ! " ${project_names[@]} " =~ " ${Z_PROJECT_SHORT_NAME[$i]} " ]]; then
-        project_names+=("${Z_PROJECT_SHORT_NAME[$i]}")
-      fi
-    fi
-  done
-  
-  # Remove any empty values in the array (e.g., if $pump_pro_file_value is empty)
-  project_names=("${project_names[@]/#/}")
-
-  #print "project_names: ${project_names[@]}" >&1
-
-  # Loop over the projects to check and execute them
-  for project in "${project_names[@]}"; do
-    if [[ -n "$project" ]]; then
-      #print " pro project: $project" >&1
-      pro -f "$project" # &>/dev/null
-      if (( $? == 0 )); then
-        #print "good: $project" >&1
-        break  # Exit loop once a valid project is found and executed successfully
-      else
-        #print "bad: $project" >&1
-      fi
-    fi
-  done
-fi
+activate_pro_
 # ==========================================================================
 
 # project functions =========================================================
@@ -5705,7 +5953,7 @@ function z_project_handler_() { # pump() project()
   #local is_single_mode=$(is_project_single_mode_ "${Z_PROJECT_FOLDER[$i]}")
 
   if (( z_project_handler_is_f )); then
-    local folders=($(get_proj_folders_ "$proj_folder"))
+    local folders=($(get_folders_ "$proj_folder"))
     if [[ -n "${folders[*]}" ]]; then
       for folder in "${folders[@]}"; do
         echo "${pink_cor} $folder ${reset_cor}"
@@ -5739,7 +5987,7 @@ function z_project_handler_() { # pump() project()
         return 1;
       fi
     else
-      local folders=($(get_proj_folders_ "$proj_folder"))
+      local folders=($(get_folders_ "$proj_folder"))
 
       if [[ -n "${folders[*]}" ]]; then
         folder_arg=($(choose_auto_one_ "choose work folder" "${folders[@]}"))
@@ -5824,6 +6072,7 @@ function z_project_handler_() { # pump() project()
   pro "$short_name"
 }
 
+local i=0
 for i in {1..9}; do
   if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
     eval "
