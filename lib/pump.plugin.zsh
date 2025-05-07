@@ -4612,6 +4612,7 @@ function pushf() {
 
 function stash() {
   eval "$(parse_flags_ "stash_" "vl" "$@")"
+  eval "$(parse_flags_ "stash_" "vl" "$@")"
   (( stash_is_d )) && set -x
 
   if (( stash_is_h )); then
