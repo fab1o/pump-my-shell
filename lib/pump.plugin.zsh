@@ -4509,6 +4509,7 @@ function glog() {
     x=15
   fi
 
+  print ""
   git --no-pager log --oneline -n ${x} --graph --date=relative --decorate
   RET=$?
 
