@@ -1282,10 +1282,8 @@ function help() {
   
   help_line_ "git stash" "${solid_cyan_cor}"
   print ""
-  print " ${solid_cyan_cor} pop ${reset_cor}\t\t = stash pop index"
-  print " ${solid_cyan_cor} stash ${reset_cor}\t = stash unnamed"
-  print " ${solid_cyan_cor} stash <name> ${reset_cor}  = stash with name"
-  print " ${solid_cyan_cor} stashes ${reset_cor}\t = list all stashes"
+  print " ${solid_cyan_cor} pop ${reset_cor}\t\t = apply stash then remove from list"
+  print " ${solid_cyan_cor} stash ${reset_cor}\t = stash all files"
 
   print ""
   help_line_ "git tags" "${solid_cyan_cor}"
@@ -4492,7 +4490,7 @@ function glog() {
   (( glog_is_d )) && set -x
 
   if (( glog_is_h )); then
-    print "  ${yellow_cor}glog ${solid_yellow_cor}[x]${reset_cor} : to log last x commits, default is 15"
+    print "  ${yellow_cor}glog ${solid_yellow_cor}[n]${reset_cor} : to log last commits limit by n"
     return 0;
   fi
 
@@ -4613,23 +4611,35 @@ function pushf() {
 }
 
 function stash() {
-  eval "$(parse_flags_ "stash_" "" "$@")"
+  eval "$(parse_flags_ "stash_" "vl" "$@")"
   (( stash_is_d )) && set -x
 
   if (( stash_is_h )); then
-    print "  ${yellow_cor}stash ${reset_cor} : to stash all files unnamed"
-    print "  ${yellow_cor}stash <name>${reset_cor} : to stash all files with name"
+    print "  ${yellow_cor}stash [<name>]${reset_cor} : to stash all files"
+    print "  ${yellow_cor}stash -v ${solid_yellow_cor}[n]${reset_cor} : to view latest nth stash"
+    print "  ${yellow_cor}stash -l ${solid_yellow_cor}[n]${reset_cor} : to list stashes, limit by n"
     return 0;
   fi
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  if [[ -n "$1" ]]; then
-    git stash push --include-untracked --message "$1" ${@:2}
+  if (( stash_is_v )); then
+    git stash show -p stash@{${1:-0}}
+    return $?;
+  elif (( stash_is_l )); then
+    git stash list | head -n ${1:-10}
     return $?;
   fi
 
+  if [[ -n "$1" ]]; then
+    git stash push --include-untracked --message "$1" ${@:2}
+    RET=$?
+  fi
+
   git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)"
+  RET=$?
+
+  return $RET;
 }
 
 function dtag() {
@@ -5887,20 +5897,6 @@ function st() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   git status -sb $@
-}
-
-function stashes() {
-  eval "$(parse_flags_ "stashes_" "" "$@")"
-  (( stashes_is_d )) && set -x
-
-  if (( stashes_is_h )); then
-    print "  ${yellow_cor}stashes${reset_cor} : to show git stashes"
-    return 0;
-  fi
-
-  check_git_; if (( $? != 0 )); then return 1; fi
-
-  git stash list
 }
 
 function load_config_entry_() {
