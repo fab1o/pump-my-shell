@@ -467,53 +467,35 @@ function choose_multiple_() {
     esac
   done
 }
-function choose_one_() {
-  local purple=$'\e[38;5;99m'
-  local reset=$'\e[0m'
+
+function filter_one_() { # gum filter does not have
+  local auto="$1"
 
   if command -v gum &>/dev/null; then
-    echo "$(gum choose --limit=1 --height="$2" --header="${purple} $1:${reset}" "${@:3}")"
-    return 0;
-  fi
-  
-  PS3="${purple}$1: ${reset}"
-  select choice in "${@:3}" "quit"; do
-    case $choice in
-      "quit")
-        return 1;
-        ;;
-      *)
-        echo "$choice"
-        return 0;
-        ;;
-    esac
-  done
-}
-
-function choose_auto_one_by_filtering_() {
-  if command -v gum &>/dev/null; then
-    print "${purple_cor} $1: ${reset_cor}" >&2
-    echo "$(gum filter --height 20 --limit 1 --indicator=">" --placeholder=" $2" "${@:3}")"
-  else
-    choose_auto_one_ "$2" "$3"
-  fi
-}
-
-function choose_auto_one_() {
-  local purple=$'\e[38;5;99m'
-  local reset=$'\e[0m'
-
-  if command -v gum &>/dev/null; then
-    local choice="$(gum choose --limit=1 --select-if-one --height 20 --header="${purple} $1:${reset}" "${@:2}")"
-    if [[ -z "$choice" ]]; then
-      return 1;
+    print "${purple_cor} $2: ${reset_cor}" >&2
+    if (( auto )); then
+      echo "$(gum filter --height 20 --limit 1 --select-if-one --indicator=">" --placeholder=" $3" "${@:4}")"
+    else
+      echo "$(gum filter --height 20 --limit 1 --indicator=">" --placeholder=" $3" "${@:4}")"
     fi
-    echo "$choice"
+  else
+    choose_one_ $auto "$3" "$4"
+  fi
+}
+
+function choose_one_() {
+  local auto="$1"
+
+  local purple=$'\e[38;5;99m'
+  local reset=$'\e[0m'
+
+  if command -v gum &>/dev/null; then
+    echo "$(gum choose --limit=1 --header="${purple} $2:${reset}" --height="$3" "${@:4}")"
     return 0;
   fi
   
-  PS3="${purple}$1: ${reset}"
-  select choice in "${@:2}" "quit"; do
+  PS3="${purple}$2: ${reset}"
+  select choice in "${@:4}" "quit"; do
     case $choice in
       "quit")
         return 1;
@@ -933,7 +915,7 @@ function input_repo_() {
       if [[ -n "$gh_owner" ]]; then
         repos=("${(@f)$(gh repo list $gh_owner --limit 100 --json nameWithOwner -q '.[].nameWithOwner')}")
         if (( $? == 0 && ${#repos[@]} > 0 )); then
-          local selected_repo=$(choose_one_ "choose repository" 30 "${repos[@]}")
+          local selected_repo=$(choose_one_ 0 "choose repository" 30 "${repos[@]}")
           if [[ -n "$selected_repo" ]]; then
             local mode=""
             mode=$(confirm_between_ "ssh or https?" "ssh" "https" 1)
@@ -1708,7 +1690,7 @@ function save_prj_folder_() {
   local folder="${2:-$Z_PROJECT_FOLDER[$i]}"
 
   local repo="$Z_PROJECT_REPO[$i]"
-  local single_mode="$Z_PROJECT_SINGLE_MODE[$i]"
+  local single_mode=$Z_PROJECT_SINGLE_MODE[$i]
 
   print_debug_ "save_prj_folder_ index: $i - folder: "$folder" - is_s: $save_prj_folder_is_s - is_r: $save_prj_folder_is_r"
 
@@ -1873,7 +1855,7 @@ function save_prj_repo_() {
 function save_pkg_manager_() {
   local i="$1"
 
-  local choose_pkg=($(choose_one_ "choose package manager" 15 "npm" "yarn" "pnpm" "bun" "pip" "poetry" "poe"))
+  local choose_pkg=($(choose_one_ 0 "choose package manager" 15 "npm" "yarn" "pnpm" "bun" "poe" "cargo" "conda"))
 
   if [[ -n "$choose_pkg" ]]; then
     check_prj_pkg_manager_ $i "$choose_pkg"
@@ -2301,42 +2283,42 @@ function get_default_folder_() {
   fi
 }
 
-function is_project_single_mode_() {
-  local i=$1
+# function is_project_single_mode_() {
+#   local i=$1
 
-  local proj_folder=""
-  local single_mode=""
+#   local proj_folder=""
+#   local single_mode=""
 
-  if (( i > 0 )); then
-    proj_folder="${Z_PROJECT_FOLDER[$i]}"
-    single_mode="${Z_PROJECT_SINGLE_MODE[$i]:-0}"
-  else
-    proj_folder="$Z_CURRENT_PROJECT_FOLDER"
-    single_mode="${Z_CURRENT_PROJECT_SINGLE_MODE:-0}"
-  fi
+#   if (( i > 0 )); then
+#     proj_folder="${Z_PROJECT_FOLDER[$i]}"
+#     single_mode="${Z_PROJECT_SINGLE_MODE[$i]:-0}"
+#   else
+#     proj_folder="$Z_CURRENT_PROJECT_FOLDER"
+#     single_mode="${Z_CURRENT_PROJECT_SINGLE_MODE:-0}"
+#   fi
 
-  print_debug_ "is_project_single_mode_ index: $i - proj_folder: $proj_folder - single_mode: $single_mode"
+#   print_debug_ "is_project_single_mode_ index: $i - proj_folder: $proj_folder - single_mode: $single_mode"
 
-  if (( ! single_mode )); then
-    echo $single_mode
-    return $single_mode;
-  fi
+#   if (( ! single_mode )); then
+#     echo $single_mode
+#     return $single_mode;
+#   fi
 
-  if [[ -n "$proj_folder" ]]; then
-    if [[ -n "$(ls -A "$proj_folder" 2>/dev/null)" ]]; then
-      echo $single_mode
-      return $single_mode;
-    fi
+#   if [[ -n "$proj_folder" ]]; then
+#     if [[ -n "$(ls -A "$proj_folder" 2>/dev/null)" ]]; then
+#       echo $single_mode
+#       return $single_mode;
+#     fi
 
-    if is_git_repo_ "$proj_folder" || check_pkg_silent_ "$proj_folder"; then
-      echo $SINGLE_MODE;
-      return $SINGLE_MODE;
-    fi
-  fi
+#     if is_git_repo_ "$proj_folder" || check_pkg_silent_ "$proj_folder"; then
+#       echo $SINGLE_MODE;
+#       return $SINGLE_MODE;
+#     fi
+#   fi
 
-  echo $single_mode
-  return $single_mode;
-}
+#   echo $single_mode
+#   return $single_mode;
+# }
 
 function pro() {
   eval "$(parse_flags_ "pro_" "aerupf" "$@")"
@@ -3184,7 +3166,7 @@ function run() {
     if [[ -n $i ]]; then
       proj_arg="${1:-$Z_CURRENT_PROJECT_SHORT_NAME}"
       if [[ "$2" == "dev" || "$2" == "stage" || "$2" == "prod" ]]; then
-        local single_mode=$(is_project_single_mode_ $i)
+        local single_mode=$Z_PROJECT_SINGLE_MODE[$i]
 
         if (( single_mode )); then
           _env="$2";
@@ -3483,11 +3465,12 @@ function revs() {
 }
 
 function rev() {
-  eval "$(parse_flags_ "rev_" "" "$@")"
+  eval "$(parse_flags_ "rev_" "b" "$@")"
   (( rev_is_d )) && set -x
 
   if (( rev_is_h )); then
     print "${yellow_cor} rev${reset_cor} : open a pull request for review"
+    print "${yellow_cor} rev -b <branch>${reset_cor} : open a branch for review"
     if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
       print "${yellow_cor} rev${solid_yellow_cor} [<branch>]${reset_cor} : to open a review for $Z_CURRENT_PROJECT_SHORT_NAME"
     fi
@@ -3534,7 +3517,7 @@ function rev() {
       _setup="${Z_SETUP[$i]}"
       _clone="${Z_CLONE[$i]}"
       code_editor="${Z_CODE_EDITOR[$i]}"
-      single_mode=$(is_project_single_mode_ $i)
+      single_mode=$Z_PROJECT_SINGLE_MODE[$i]
       break
     fi
   done
@@ -3559,7 +3542,7 @@ function rev() {
     git fetch origin --quiet
 
     if [[ -z "$1" || -z "$branch_arg" ]]; then
-      select_pr_;
+      local pr=$(select_pr_)
       if (( $? != 0 )); then
         cd "$_pwd"
         return 1;
@@ -3576,7 +3559,7 @@ function rev() {
       return 1;
     fi
 
-    select_pr_ "$branch_arg";
+    local pr=$(select_pr_ "$branch_arg");
     if (( $? != 0 )); then
       cd "$_pwd"
       return 1;
@@ -3809,7 +3792,7 @@ function clone() {
       _clone="${Z_CLONE[$i]}"
       default_branch="${Z_DEFAULT_BRANCH[$i]}"
       print_readme="${Z_PRINT_README[$i]}"
-      single_mode="${Z_PROJECT_SINGLE_MODE[$i]}"
+      single_mode=$Z_PROJECT_SINGLE_MODE[$i]
       break
     fi
   done
@@ -4291,7 +4274,7 @@ function recommit() {
 
   git commit -m "$last_commit_msg" $@
 
-  if (( $? == 0 )); then
+  if (( $? == 0 && ! recommit_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git log -1 --pretty=format:'%h %s' | xargs -0
   fi
@@ -4488,27 +4471,37 @@ function push() {
     git push --no-verify --tags $@
   elif (( push_is_f && push_is_l )); then
     git push --no-verify --force-with-lease --set-upstream origin "$my_branch" $@
+    RET=$?
+    if (( ! RET && ! push_is_q && ! push_is_t && ! ${argv[(Ie)--quiet]} )); then
+      if confirm_from_ "try push force?"; then
+        pushf -f $@
+        return $?;
+      fi
+    fi
   elif (( push_is_f )); then
     git push --no-verify --force --set-upstream origin "$my_branch" $@
   else
     git push --no-verify --set-upstream origin "$my_branch" $@
+    RET=$?
+    if (( ! RET && ! push_is_q && ! push_is_t && ! ${argv[(Ie)--quiet]} )); then
+      if confirm_from_ "try push force with lease?"; then
+        pushf -fl $@
+        return $?;
+      fi
+    fi
   fi
 
-  if (( ! $? && ! push_is_t )); then
+  if (( RET == 0 && ! push_is_q && ! push_is_t && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git log -1 --pretty=format:'%h %s' | xargs -0
-  else
-    if confirm_from_ "do you want to try push force with lease?"; then
-      pushf -l $@
-    fi
   fi
 }
 
 function pushf() {
-  eval "$(parse_flags_ "pf_" "ltq" "$@")"
-  (( pf_is_d )) && set -x
+  eval "$(parse_flags_ "pushf_" "ltq" "$@")"
+  (( pushf_is_d )) && set -x
 
-  if (( is_h )); then
+  if (( pushf_is_h )); then
     print "${yellow_cor} pushf${reset_cor} : to force push no-verify"
     print "${yellow_cor} pushf -l${reset_cor} : to force with lease"
     print "${yellow_cor} pushf -t${reset_cor} : to force push tags"
@@ -4519,16 +4512,15 @@ function pushf() {
 
   local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
 
-
-  if (( pf_is_l )); then
+  if (( pushf_is_l )); then
     git push --no-verify --force-with-lease origin "$my_branch" $@
-  elif (( pf_is_t )); then
+  elif (( pushf_is_t )); then
     git push --no-verify --tags --force $@
   else
     git push --no-verify --force origin "$my_branch" $@
   fi
 
-  if (( $? == 0 && ! pf_is_t && ! pf_is_q )); then
+  if (( $? == 0 && ! pushf_is_t && ! pushf_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git log -1 --pretty=format:'%h %s' | xargs -0
   fi
@@ -4607,10 +4599,10 @@ function pull() {
   if (( pull_is_t )); then
     git pull origin --tags $@
   else
-    git pull --rebase --autostash $@ origin "$branch"
+    git pull origin "$branch" --rebase --autostash $@
   fi
 
-  if (( ! $? && ! pull_is_t && ! pull_is_q )); then
+  if (( ! $? && ! pull_is_t && ! pull_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git log -1 --pretty=format:'%h %s' | xargs -0
   fi
@@ -4920,6 +4912,7 @@ function shorten_path_() {
 # select_branch_ -a <search_text>
 function select_branch_() {
   local multiple=${3:-0}
+  local auto=${4:-0}
 
   # $1 are flag options
   # $2 is the search string
@@ -4942,10 +4935,10 @@ function select_branch_() {
     local branch_choices_count=$(echo "$branch_choices" | wc -l)
     print_debug_ "select_branch_ : branch_choices_count=$branch_choices_count"
   # $(echo "$branch_choices" | tr ' ' '\n')
-    if [ $branch_choices_count -gt 20 ]; then
-      select_branch_choice=$(choose_auto_one_by_filtering_ "choose a branch" "type branch name" $(echo "$branch_choices" | tr ' ' '\n'))
+    if [[ $branch_choices_count -gt 20 ]]; then
+      select_branch_choice=$(filter_one_ $auto "choose a branch" "type branch name" $(echo "$branch_choices" | tr ' ' '\n'))
     else
-      select_branch_choice=$(choose_auto_one_ "choose a branch" $(echo "$branch_choices" | tr ' ' '\n'))
+      select_branch_choice=$(choose_one_ $auto "choose a branch" 20 $(echo "$branch_choices" | tr ' ' '\n'))
     fi
   fi
 
@@ -4956,18 +4949,22 @@ function select_branch_() {
 
 function select_pr_() {
   local pr_list=$(gh pr list | grep -i "$1" | awk -F'\t' '{print $1 "\t" $2 "\t" $3}');
-  local count=$(echo "$pr_list" | wc -l);
 
-  if [[ -n "$pr_list" ]]; then
+  if [[ -z "$pr_list" ]]; then
     print " no pull requests found" >&2
     print "" >&2
     return 1;
   fi
 
+  print_debug_ "select_pr_ : pr_list=$pr_list"
+
+  local count=$(echo "$pr_list" | wc -l);
   local titles=$(echo "$pr_list" | cut -f2);
 
+  print_debug_ "select_pr_ : titles=$titles"
+
   local select_pr_title=""
-  if [ $count -gt 20 ]; then
+  if [[ $count -gt 20 ]]; then
     print "${purple_cor} choose pull request: ${reset_cor}" >&2
     select_pr_title=$(echo "$titles" | gum filter --select-if-one --height 24  --indicator=">" --placeholder=" type pull request title");
     print "" >&2
@@ -5209,14 +5206,14 @@ function gha() {
 }
 
 function co() {
-  eval "$(parse_flags_ "co_" "aprebx" "$@")"
+  eval "$(parse_flags_ "co_" "aprebxl" "$@")"
   (( co_is_d )) && set -x
 
   if (( co_is_h )); then
     print "${yellow_cor} co${reset_cor} : to list local branches to switch"
-    print "${yellow_cor} co -a${reset_cor} : to list all branches"
-    print "${yellow_cor} co -pr${reset_cor} : to list PRs to check out (similar to rev but does not create a new review folder, only switches branches)"
-    print "${yellow_cor} co -r${reset_cor} : to list remote branches only"
+    print "${yellow_cor} co -l${reset_cor} : to list only local branches"
+    print "${yellow_cor} co -r${reset_cor} : to list only remote branches"
+    print "${yellow_cor} co -pr${reset_cor} : to list PRs instead of branches"
     print " --"
     print "${yellow_cor} co <branch>${reset_cor} : to switch to an existing branch"
     print "${yellow_cor} co -e <branch>${reset_cor} : to switch to exact branch"
@@ -5257,8 +5254,23 @@ function co() {
   if (( co_is_a )); then
     print_debug_ "co -a asking for: $@"
     fetch --quiet
-    local branch_choice="$(select_branch_ -a "$1")"
+    local branch_choice="$(select_branch_ --all "$1")"
     print_debug_ "co -a branch_choice: $branch_choice"
+
+    if [[ -z "$branch_choice" ]]; then
+      return 1;
+    fi
+
+    co -e $branch_choice
+    return $?
+  fi
+
+  # co -l local branches
+  if (( co_is_l )); then
+    print_debug_ "co -l asking for: $@"
+    fetch --quiet
+    local branch_choice="$(select_branch_ --list "$1")"
+    print_debug_ "co -l branch_choice: $branch_choice"
 
     if [[ -z "$branch_choice" ]]; then
       return 1;
@@ -5350,7 +5362,7 @@ function co() {
   # co (no arguments)
   if [[ -z "$1" ]]; then
     print_debug_ "co (no arguments and no flags)"
-    local branch_choice="$(select_branch_ --list)"
+    local branch_choice="$(select_branch_ -a)"
     print_debug_ "co - branch_choice: $branch_choice"
 
     if [[ -z "$branch_choice" ]]; then
@@ -5364,7 +5376,7 @@ function co() {
   # co branch (no flags, no base branch)
   if [[ -z "$2" ]]; then
     print_debug_ "co asking for: $1 (no flags)"
-    co -a $1
+    co -a "$1"
     return $?
   fi
 
@@ -6036,8 +6048,7 @@ function z_project_handler_() { # pump() project()
 
   local short_name="${Z_PROJECT_SHORT_NAME[$i]}"
   local working="${PUMP_WORKING[$i]}"
-
-  local single_mode=$(is_project_single_mode_ $i)
+  local single_mode=$Z_PROJECT_SINGLE_MODE[$i]
 
   if (( z_project_handler_is_h )); then
     print "${yellow_cor} $short_name ${reset_cor}: to set project to $short_name and cd into it"
