@@ -105,6 +105,28 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   fi
 done < "$SRC_CONFIG"
 
+new_lines+=("")
+new_lines+=("# user generated =================================================================")
+new_lines+=("")
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ -z "$line" || "$line" =~ "^#" ]]; then
+    continue
+  fi
+
+  key=$(extract_key "$line")
+
+  if [[ -n "$key" ]]; then
+    if [[ ! -v src_keys[$key] ]]; then
+      new_lines+=("$line")
+    fi
+  else
+    if ! grep -q "^${line}" "$SRC_CONFIG"; then
+      new_lines+=("$line")
+    fi
+  fi
+done < "$DEST_CONFIG"
+
 # Append remaining keys in dest that are NOT in source
 for key in "${(@k)dest_keys}"; do
   if [[ -z "${src_keys[$key]}" ]]; then

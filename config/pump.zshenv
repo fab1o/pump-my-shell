@@ -38,6 +38,19 @@ Z_PROJECT_REPO_8=
 Z_PROJECT_REPO_9=
 
 # optional
+# default: 0
+# Set to 1 for single project mode, 0 for multiple project mode
+Z_PROJECT_SINGLE_MODE_1=
+Z_PROJECT_SINGLE_MODE_2=
+Z_PROJECT_SINGLE_MODE_3=
+Z_PROJECT_SINGLE_MODE_4=
+Z_PROJECT_SINGLE_MODE_5=
+Z_PROJECT_SINGLE_MODE_6=
+Z_PROJECT_SINGLE_MODE_7=
+Z_PROJECT_SINGLE_MODE_8=
+Z_PROJECT_SINGLE_MODE_9=
+
+# optional
 # default: npm
 # Package manager for each project
 # example: yarn
