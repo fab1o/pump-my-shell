@@ -2280,7 +2280,7 @@ function get_default_folder_() {
 
   local _pwd=$(pwd)
   cd "$folder"
-  local default_folder=$(git config --get init.defaultBranch)
+  local default_folder="$(git config --get init.defaultBranch)"
   cd "$_pwd"
 
   if is_git_repo_ "$proj_folder/$default_folder"; then    
@@ -2596,7 +2596,7 @@ function refix() {
     return 0;
   fi
 
-  pushf "$@"
+  pushf $@
 }
 
 function covc() {
@@ -4409,13 +4409,13 @@ function glog() {
 }
 
 function push() {
-  eval "$(parse_flags_ "push_" "" "$@")"
+  eval "$(parse_flags_ "push_" "flt" "$@")"
 
   if (( push_is_h )); then
     print "${yellow_cor} push${reset_cor} : to push with no-verify"
-    print " ${yellow_cor} -fl${reset_cor} : force with lease"
-    print " ${yellow_cor}  -t${reset_cor} : push tags"
-    print " ${yellow_cor}  -f${reset_cor} : force"
+    print "${yellow_cor} push -fl${reset_cor} : force with lease"
+    print "${yellow_cor} push -t${reset_cor} : push tags"
+    print "${yellow_cor} push -f${reset_cor} : force"
     return 0;
   fi
 
@@ -4440,27 +4440,37 @@ function push() {
   if (( ! $? && ! push_is_t )); then
     print ""
     git log -1 --pretty=format:'%h %s' | xargs -0
+  else
+    if confirm_from_ "do you want to try push force with lease?"; then
+      pushf -l $@
+    fi
   fi
 }
 
 function pushf() {
-  eval "$(parse_flags_ "pf_" "" "$@")"
+  eval "$(parse_flags_ "pf_" "ltq" "$@")"
 
   if (( is_h )); then
     print "${yellow_cor} pushf${reset_cor} : to force push no-verify"
-    print "${yellow_cor}    -t${reset_cor} : to force push tags"
+    print "${yellow_cor} pushf -l${reset_cor} : to force with lease"
+    print "${yellow_cor} pushf -t${reset_cor} : to force push tags"
     return 0;
   fi
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  if (( is_t )); then
+  local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+
+
+  if (( pf_is_l )); then
+    git push --no-verify --force-with-lease origin $my_branch $@
+  elif (( pf_is_t )); then
     git push --no-verify --tags --force $@
   else
-    git push --no-verify --force $@
+    git push --no-verify --force origin "$my_branch" $@
   fi
 
-  if (( $? == 0 && ! is_t && ! is_q )); then
+  if (( $? == 0 && ! pf_is_t && ! pf_is_q )); then
     print ""
     git log -1 --pretty=format:'%h %s' | xargs -0
   fi
@@ -6036,7 +6046,7 @@ function z_project_handler_() { # pump() project()
       co "$branch_arg"
     else
       # get default branch
-      local default_branch=$(git config --get init.defaultBranch)
+      local default_branch="$(git config --get init.defaultBranch)"
       co -e "$default_branch"
     fi
   fi
