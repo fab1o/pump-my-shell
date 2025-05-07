@@ -2680,6 +2680,7 @@ function covc() {
   local _setup="$Z_CURRENT_SETUP"
   local _clone="$Z_CURRENT_CLONE"
   local _cov="$Z_CURRENT_COV"
+  local single_mode="$Z_CURRENT_PROJECT_SINGLE_MODE"
 
   if [[ -z "$proj_folder" || -z "$proj_name" ]]; then
     print " project is missing, please specify a project, type ${yellow_cor}pro -h${reset_cor} to see usage" >&2
@@ -2716,7 +2717,7 @@ function covc() {
   #   fi
   # fi
 
-  if is_project_single_mode_ 0 &>/dev/null; then
+  if (( single_mode )); then
     cov_folder=".$proj_folder-coverage"
   else
     cov_folder="$proj_folder/.coverage"
@@ -3867,6 +3868,8 @@ function clone() {
     if (( $? == 130 )); then
       return 130;
     fi
+
+    Z_PROJECT_SINGLE_MODE[$found]="$single_mode"
     update_config_ $found "Z_PROJECT_SINGLE_MODE" "$single_mode"
   fi
 
