@@ -45,57 +45,60 @@ if [[ ! -f "$PUMP_CONFIG_FILE" ]]; then
 fi
 
 # ========================================================================
-Z_CURRENT_PROJECT_FOLDER=""
-Z_CURRENT_PROJECT_SHORT_NAME=""
-Z_CURRENT_PROJECT_REPO=""
-Z_CURRENT_PROJECT_SINGLE_MODE=""
-Z_CURRENT_PACKAGE_MANAGER=""
-Z_CURRENT_CODE_EDITOR=""
-Z_CURRENT_CLONE=""
-Z_CURRENT_SETUP=""
-Z_CURRENT_RUN=""
-Z_CURRENT_RUN_STAGE=""
-Z_CURRENT_RUN_PROD=""
-Z_CURRENT_PRO=""
-Z_CURRENT_TEST=""
-Z_CURRENT_COV=""
-Z_CURRENT_TEST_WATCH=""
-Z_CURRENT_E2E=""
-Z_CURRENT_E2EUI=""
-Z_CURRENT_PR_TEMPLATE=""
-Z_CURRENT_PR_REPLACE=""
-Z_CURRENT_PR_APPEND=""
-Z_CURRENT_PR_RUN_TEST=""
-Z_CURRENT_GHA_INTERVAL=""
-Z_CURRENT_COMMIT_ADD=""
-Z_CURRENT_GHA_WORKFLOW=""
-Z_CURRENT_PUSH_ON_REFIX=""
-Z_CURRENT_DEFAULT_BRANCH=""
-Z_CURRENT_PRINT_README=""
+typeset -g Z_CURRENT_PROJECT_FOLDER=""
+typeset -g Z_CURRENT_PROJECT_SHORT_NAME=""
+typeset -g Z_CURRENT_PROJECT_REPO=""
+typeset -g Z_CURRENT_PROJECT_SINGLE_MODE=""
+typeset -g Z_CURRENT_PACKAGE_MANAGER=""
+typeset -g Z_CURRENT_CODE_EDITOR=""
+typeset -g Z_CURRENT_CLONE=""
+typeset -g Z_CURRENT_SETUP=""
+typeset -g Z_CURRENT_RUN=""
+typeset -g Z_CURRENT_RUN_STAGE=""
+typeset -g Z_CURRENT_RUN_PROD=""
+typeset -g Z_CURRENT_PRO=""
+typeset -g Z_CURRENT_TEST=""
+typeset -g Z_CURRENT_COV=""
+typeset -g Z_CURRENT_TEST_WATCH=""
+typeset -g Z_CURRENT_E2E=""
+typeset -g Z_CURRENT_E2EUI=""
+typeset -g Z_CURRENT_PR_TEMPLATE=""
+typeset -g Z_CURRENT_PR_REPLACE=""
+typeset -g Z_CURRENT_PR_APPEND=""
+typeset -g Z_CURRENT_PR_RUN_TEST=""
+typeset -g Z_CURRENT_GHA_INTERVAL=""
+typeset -g Z_CURRENT_COMMIT_ADD=""
+typeset -g Z_CURRENT_GHA_WORKFLOW=""
+typeset -g Z_CURRENT_PUSH_ON_REFIX=""
+typeset -g Z_CURRENT_DEFAULT_BRANCH=""
+typeset -g Z_CURRENT_PRINT_README=""
 
-PUMP_PAST_FOLDER=""
-PUMP_PAST_BRANCH=""
+typeset -g MULTIPLE_MODE=0
+typeset -g SINGLE_MODE=1
 
-bright_green_cor="\e[1m\e[38;5;151m"
-dark_gray_cor="\e[38;5;236m"
+typeset -g PUMP_PAST_FOLDER=""
+typeset -g PUMP_PAST_BRANCH=""
 
-solid_blue_cor="\e[34m"
-solid_cyan_cor="\e[36m"
-solid_green_cor="\e[32m"
-solid_yellow_cor="\e[33m"
-solid_magenta_cor="\e[35m"
-solid_red_cor="\e[31m"
+typeset -g bright_green_cor="\e[1m\e[38;5;151m"
+typeset -g dark_gray_cor="\e[38;5;236m"
 
-gray_cor="\e[38;5;252m"
-reset_cor="\e[0m"
-blue_cor="\e[94m"
-cyan_cor="\e[96m"
-green_cor="\e[92m"
-yellow_cor="\e[93m"
-magenta_cor="\e[95m"
-red_cor="\e[91m"
-pink_cor="\e[0;95m"
-purple_cor="\e[38;5;99m"
+typeset -g solid_blue_cor="\e[34m"
+typeset -g solid_cyan_cor="\e[36m"
+typeset -g solid_green_cor="\e[32m"
+typeset -g solid_yellow_cor="\e[33m"
+typeset -g solid_magenta_cor="\e[35m"
+typeset -g solid_red_cor="\e[31m"
+
+typeset -g gray_cor="\e[38;5;252m"
+typeset -g reset_cor="\e[0m"
+typeset -g blue_cor="\e[94m"
+typeset -g cyan_cor="\e[96m"
+typeset -g green_cor="\e[92m"
+typeset -g yellow_cor="\e[93m"
+typeset -g magenta_cor="\e[95m"
+typeset -g red_cor="\e[91m"
+typeset -g pink_cor="\e[0;95m"
+typeset -g purple_cor="\e[38;5;99m"
 # ========================================================================
 
 function cl() {
@@ -358,6 +361,7 @@ function confirm_from_() {
 
 function update_() {
   eval "$(parse_flags_ "update_" "f" "$@")"
+  (( update_is_d )) && set -x
 
   local release_tag="https://api.github.com/repos/fab1o/pump-my-shell/releases/latest"
   local latest_version=$(curl -s $release_tag | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
@@ -438,14 +442,20 @@ function choose_multiple_() {
   local cor=$'\e[38;2;167;139;250m'
   local reset=$'\e[0m'
 
+  local auto=$1
+
   if command -v gum &>/dev/null; then
-    echo "$(gum choose --no-limit --height 20 --header="${purple} $1 ${cor}(use spacebar)${purple}:${reset}" "${@:2}")"
+    if (( auto )); then
+      echo "$(gum choose --select-if-one --no-limit --height 20 --header="${purple} $2 ${cor}(use spacebar)${purple}:${reset}" "${@:3}")"
+    else
+      echo "$(gum choose --no-limit --height 20 --header="${purple} $2 ${cor}(use spacebar)${purple}:${reset}" "${@:3}")"
+    fi
     return 0;
   fi
 
   trap 'echo ""; return 130' INT
-  PS3="${purple}$1: ${reset}"
-  select choice in "${@:2}" "quit"; do
+  PS3="${purple}$2: ${reset}"
+  select choice in "${@:3}" "quit"; do
     case $choice in
       "quit")
         return 1;
@@ -516,20 +526,6 @@ function choose_auto_one_() {
   done
 }
 
-function get_files_() {
-  local _pwd=$(pwd)
-
-  if [[ -n "$1" ]]; then
-    cd "$1"
-  fi
-
-  setopt null_glob
-  ls -d * | sed 's:/$::' | grep -v -E '^\.$|^revs$'
-  unsetopt null_glob
-
-  cd "$_pwd"
-}
-
 function get_folders_() {
   local _pwd=$(pwd)
 
@@ -537,21 +533,29 @@ function get_folders_() {
     cd "$1"
   fi
 
-  setopt null_glob
-  ls -d */ | sed 's:/$::' | grep -v -E '^\.$|^revs$'
-  unsetopt null_glob
+  #dirs=(*(/))
+  local dirs=(*(/N))
+  local filtered=()
+  local f=""
+  for f in "${dirs[@]}"; do
+    [[ $f != "revs" ]] && filtered+=$f
+  done
 
+  echo "${filtered[@]}"
+  
   cd "$_pwd"
 }
 
 # Deleting a path
 function del() {
-  eval "$(parse_flags_ "del_" "s" "$@")"
+  eval "$(parse_flags_ "del_" "as" "$@")"
+  (( del_is_d )) && set -x
 
   if (( del_is_h )); then
     print "${yellow_cor} del ${reset_cor} : to delete in current directory"
     print "${yellow_cor} del <glob>${reset_cor} : to delete files (or folders)"
-    print "${yellow_cor} del -s ${solid_yellow_cor}[<glob>]${reset_cor} : without confirmation"
+    print "${yellow_cor} del -a${reset_cor} : include hidden files"
+    print "${yellow_cor} del -s${reset_cor} : skip confirmation"
     return 0;
   fi
 
@@ -576,22 +580,40 @@ function del() {
   # fi
 
   if [[ -z "$1" ]]; then
-    if [[ -n ${(f)"$(get_files_)"} ]]; then
-      local folders=($(get_files_))
-      local selected_folders=$(choose_multiple_ "choose what to delete" "${folders[@]}")
-      if [[ -z "$selected_folders" ]]; then
+    local files;
+    if (( del_is_a )); then
+      files=(*(DN)) # include dotfiles, but not . and ..
+    else
+      files=(*)
+    fi
+    if (( ${#files[@]} )); then
+      local selected_files=("${(@f)$(choose_multiple_ 1 "choose what to delete" "${files[@]}")}")
+      if [[ -z "$selected_files" ]]; then
         return 1;
       fi
 
-      # delete_pump_workings_ "$pump_working_branch" "$_pro" "${selected_folders[@]}"
-
-      for folder in "${selected_folders[@]}"; do
-        gum spin --title "deleting... $folder" -- rm -rf "$folder"
-        print "${magenta_cor} deleted${blue_cor} $folder ${reset_cor}"
+      # delete_pump_workings_ "$pump_working_branch" "$_pro" "${selected_files[@]}"
+      local file=""
+      for file in "${selected_files[@]}"; do
+        if (( ! del_is_s )) && [[ ".DS_Store" != "$file" ]]; then
+          if [[ -d "$file" && -n "$(ls -A "$file")" ]] || [[ ! -d "$file" ]]; then
+            confirm_from_ "delete "$'\e[94m'$file$'\e[0m'"?"
+            RET=$?
+            if (( RET == 130 )); then
+              return 130;
+            fi
+            if (( RET == 1 )); then
+              continue;
+            fi
+          fi
+        fi
+  
+        gum spin --title "deleting... $file" -- rm -rf "$file"
+        print "${magenta_cor} deleted${blue_cor} $file ${reset_cor}"
       done
-      ls
+      #ls
     else
-      print " no folders"
+      print " no files"
     fi
     return 0;
   fi
@@ -612,14 +634,17 @@ function del() {
 
   # Check if it's a glob pattern with multiple or changed matches
   if [[ ${#files[@]} -gt 1 || "$pattern" != "${files[1]}" ]]; then
+    local f=""
     for f in $files; do
-      if (( ! del_is_s && _count < 3 )); then
-        confirm_from_ "delete "$'\e[94m'$f$'\e[0m'"?"
-        RET=$?
-        if (( RET == 130 )); then
-          break;
-        elif (( RET == 1 )); then
-          continue;
+      if (( ! del_is_s && _count < 3 )) && [[ ".DS_Store" != "$f" ]]; then
+        if [[ -d "$f" && -n "$(ls -A "$f")" ]] || [[ ! -d "$f" ]]; then
+          confirm_from_ "delete "$'\e[94m'$f$'\e[0m'"?"
+          RET=$?
+          if (( RET == 130 )); then
+            break;
+          elif (( RET == 1 )); then
+            continue;
+          fi
         fi
       else
         if (( is_all == 0 && dont_ask == 0 )); then
@@ -643,12 +668,14 @@ function del() {
           fi
         fi
         if (( is_all == 0 )); then
-          confirm_from_ "delete "$'\e[94m'$f$'\e[0m'"?"
-          RET=$?
-          if (( RET == 130 )); then
-            break;
-          elif (( RET == 1 )); then
-            continue;
+          if [[ -d "$f" && -n "$(ls -A "$f")" ]] || [[ ! -d "$f" ]]; then
+            confirm_from_ "delete "$'\e[94m'$f$'\e[0m'"?"
+            RET=$?
+            if (( RET == 130 )); then
+              break;
+            elif (( RET == 1 )); then
+              continue;
+            fi
           fi
         fi
       fi
@@ -677,24 +704,19 @@ function del() {
     return 1;
   fi
 
-  local confirm_msg=""
   local folder_to_move=""
 
-  if [[ "$file_path" == "$(PWD)" ]]; then
-    folder_to_move="$(dirname "$file_path")"
-    confirm_msg="delete current path "$'\e[94m'$PWD$'\e[0m'"?";
-  else
-    confirm_msg="delete "$'\e[94m'$file_path$'\e[0m'"?";
-  fi
+  if (( ! del_is_s )) && [[ ".DS_Store" != "$file_path" ]]; then
+    if [[ -d "$file_path" && -n "$(ls -A "$file_path")" ]] || [[ ! -d "$file" ]]; then
+      local confirm_msg=""
 
-  if (( ! del_is_s )) && [[ ".DS_Store" != $(basename "$file_path") ]]; then 
-    if [[ -d "$file_path" ]]; then
-      if [[ -n "$(ls -A "$file_path")" ]]; then
-        if ! confirm_from_ $confirm_msg; then
-          return 0;
-        fi
+      if [[ "$file_path" == "$(PWD)" ]]; then
+        folder_to_move="$(dirname "$file_path")"
+        confirm_msg="delete current path "$'\e[94m'$PWD$'\e[0m'"?";
+      else
+        confirm_msg="delete "$'\e[94m'$file_path$'\e[0m'"?";
       fi
-    else
+
       if ! confirm_from_ $confirm_msg; then
         return 0;
       fi
@@ -854,7 +876,8 @@ function choose_prj_folder_() {
 
     folder_path=""
     
-    if [[ -z ${(f)"$(get_folders_)"} ]]; then
+    local dirs=($(get_folders_))
+    if (( ! ${#dirs[@]} )); then
       cd "${HOME:-/}"
     fi
 
@@ -1303,6 +1326,7 @@ function help() {
 # data checkers =========================================================
 function check_prj_name_() {
   eval "$(parse_flags_ "check_prj_name_" "s" "$@")"
+  (( check_prj_name_is_d )) && set -x
 
   local i="$1"
   local name="${2:-$Z_PROJECT_SHORT_NAME[$i]}"
@@ -1355,12 +1379,13 @@ function check_prj_name_() {
 
 function get_prj_repo_() {
   eval "$(parse_flags_ "get_prj_repo_" "s" "$@")"
+  (( get_prj_repo_is_d )) && set -x
 
   local i="$1"
   local repo="${2:-$Z_PROJECT_REPO[$i]}"
 
   local error_msg=""
-  local warn_msg=""
+  # local warn_msg=""
 
   if [[ -z "$repo" ]]; then
     error_msg="project repository is missing"
@@ -1370,12 +1395,23 @@ function get_prj_repo_() {
       error_msg="project repository is invalid: $repo"
     fi
   fi
-  
-  if [[ -n "$warn_msg" ]]; then
-    print " $warn_msg" >&2
+
+  if command -v gum &>/dev/null; then
+    gum spin --timeout=8s --title "checking repository uri..." -- git ls-remote "${repo}" &>/dev/null
+  else
+    print " checking repository uri..." >&1
+    git ls-remote "${repo}" &>/dev/null
+  fi
+  if (( $? != 0 )); then
+    Z_PROJECT_REPO[$i]=""
+    error_msg="repository uri is invalid or no access rights: $repo"
   fi
 
-  print_debug_ "get_prj_repo_ index: $i - repo: $repo - is_s: $get_prj_repo_is_s"
+  # if [[ -n "$warn_msg" ]]; then
+  #   print " $warn_msg" >&2
+  # fi
+
+  print_debug_ "get_prj_repo_ index: $i - repo: $repo - is_s: $get_prj_repo_is_s - error_msg: $error_msg"
 
   if [[ -n "$error_msg" ]]; then
     repo=""
@@ -1397,10 +1433,6 @@ function get_prj_repo_() {
   fi
 
   if [[ -n "$repo" ]]; then
-    if command -v gum &>/dev/null; then
-      gum spin --timeout=8s --title "checking repository uri..." -- git ls-remote "$repo"
-    fi
-    print_debug_ "get_prj_repo_: $repo"
     echo "$repo"
     return 0;
   fi
@@ -1410,6 +1442,7 @@ function get_prj_repo_() {
 
 function get_prj_folder_() {
   eval "$(parse_flags_ "get_prj_folder_" "s" "$@")"
+  (( get_prj_folder_is_d )) && set -x
 
   local i="$1"
   local folder="${2:-$Z_PROJECT_FOLDER[$i]}"
@@ -1461,6 +1494,7 @@ function get_prj_folder_() {
 
 function check_prj_pkg_manager_() {
   eval "$(parse_flags_ "check_prj_pkg_manager_" "s" "$@")"
+  (( check_prj_pkg_manager_is_d )) && set -x
 
   local i="$1"
   local pkg_manager="${2:-$Z_PACKAGE_MANAGER[$i]}"
@@ -1473,7 +1507,7 @@ function check_prj_pkg_manager_() {
     error_msg="package manager is missing"
   else
     local valid_pkg_managers=(
-      "npm" "yarn" "pnpm" "bun" "pip" "poetry" "poe"
+      "npm" "yarn" "pnpm" "bun" "poe" "conda" "cargo"
     )
 
     if ! [[ " ${valid_pkg_managers[@]} " =~ " $pkg_manager " ]]; then
@@ -1499,6 +1533,7 @@ function check_prj_pkg_manager_() {
 
 function check_prj_() {
   eval "$(parse_flags_ "check_prj_" "s" "$@")"
+  (( check_prj_is_d )) && set -x
 
   local i="$1"
 
@@ -1601,6 +1636,7 @@ function save_prj_name_really_() {
 
 function save_prj_name_() {
   eval "$(parse_flags_ "save_prj_name_" "ae" "$@")"
+  (( save_prj_name_is_d )) && set -x
 
   local i="$1"
   local name="${2:-${Z_PROJECT_SHORT_NAME[$i]}}"
@@ -1633,6 +1669,7 @@ function choose_mode_() {
 
 function save_prj_mode_() {
   eval "$(parse_flags_ "save_prj_mode_" "ae" "$@")"
+  (( save_prj_mode_is_d )) && set -x
 
   local i="$1"
   local name="${2:-${Z_PROJECT_SHORT_NAME[$i]}}"
@@ -1665,6 +1702,7 @@ function save_prj_mode_() {
 
 function save_prj_folder_() {
   eval "$(parse_flags_ "save_prj_folder_" "arse" "$@")"
+  (( save_prj_folder_is_d )) && set -x
 
   local i="$1"
   local folder="${2:-$Z_PROJECT_FOLDER[$i]}"
@@ -1764,6 +1802,7 @@ function save_prj_folder_() {
 
 function save_prj_repo_() {
   eval "$(parse_flags_ "save_prj_repo_" "ae" "$@")"
+  (( save_prj_repo_is_d )) && set -x
 
   local i="$1"
   local repo="${2:-$Z_PROJECT_REPO[$i]}"
@@ -1855,6 +1894,7 @@ function save_pkg_manager_() {
 
 function save_prj_() {
   eval "$(parse_flags_ "save_prj_" "ae" "$@")"
+  (( save_prj_is_d )) && set -x
 
   local i="$1"
 
@@ -2189,16 +2229,6 @@ function which_pro_pwd_() {
   return 1;
 }
 
-function check_any_pkg_() {
-  check_any_pkg_silent_ "$1"
-  if (( $? != 0 )); then
-    print " not a project folder: ${1:-$PWD}" >&2
-    return 1;
-  fi
-
-  return 0;
-}
-
 function check_pkg_() {
   check_pkg_silent_ "$1"
   if (( $? != 0 )); then
@@ -2209,35 +2239,16 @@ function check_pkg_() {
   return 0;
 }
 
-function check_any_pkg_silent_() {
-  local folder="${1:-$PWD}"
-
-  if [[ -n "$folder" && -d "$folder" ]]; then
-    if [[ -f "$folder/package.json" || -f "$folder/pyproject.toml" || -d "$folder/.git" ]]; then
-      return 0;
-    fi
-
-    while [[ "$folder" != "/" ]]; do
-      if [[ -f "$folder/package.json" || -f "$folder/pyproject.toml" || -d "$folder/.git" ]]; then
-        return 0;
-      fi
-      folder="$(dirname "$folder")"
-    done
-  fi
-
-  return 1;
-}
-
 function check_pkg_silent_() {
   local folder="${1:-$PWD}"
 
   if [[ -n "$folder" && -d "$folder" ]]; then
-    if [[ -f "$folder/package.json" ]]; then
+    if [[ -f "$folder/package.json" || -f "$folder/pyproject.toml" || -f "$folder/environment.yml" || -f "$folder/Cargo.toml" || -d "$folder/.git" ]]; then
       return 0;
     fi
 
     while [[ "$folder" != "/" ]]; do
-      if [[ -f "$folder/package.json" ]]; then
+      if [[ -f "$folder/package.json" || -f "$folder/pyproject.toml" || -f "$folder/environment.yml" || -f "$folder/Cargo.toml" || -d "$folder/.git" ]]; then
         return 0;
       fi
       folder="$(dirname "$folder")"
@@ -2298,31 +2309,38 @@ function is_project_single_mode_() {
 
   if (( i > 0 )); then
     proj_folder="${Z_PROJECT_FOLDER[$i]}"
-    single_mode="${Z_PROJECT_SINGLE_MODE[$i]}"
+    single_mode="${Z_PROJECT_SINGLE_MODE[$i]:-0}"
   else
     proj_folder="$Z_CURRENT_PROJECT_FOLDER"
-    single_mode="$Z_CURRENT_PROJECT_SINGLE_MODE"
+    single_mode="${Z_CURRENT_PROJECT_SINGLE_MODE:-0}"
   fi
 
   print_debug_ "is_project_single_mode_ index: $i - proj_folder: $proj_folder - single_mode: $single_mode"
 
-  if [[ -n "$proj_folder" && -d "$proj_folder" ]]; then
-    if is_git_repo_ "$proj_folder" || [[ -f "$proj_folder/package.json" || -f "$proj_folder/pyproject.toml" ]]; then
-      echo 1;
-      return 0;
+  if (( ! single_mode )); then
+    echo $single_mode
+    return $single_mode;
+  fi
+
+  if [[ -n "$proj_folder" ]]; then
+    if [[ -n "$(ls -A "$proj_folder" 2>/dev/null)" ]]; then
+      echo $single_mode
+      return $single_mode;
+    fi
+
+    if is_git_repo_ "$proj_folder" || check_pkg_silent_ "$proj_folder"; then
+      echo $SINGLE_MODE;
+      return $SINGLE_MODE;
     fi
   fi
 
-  if (( single_mode )); then
-    echo 1;
-    return 0;
-  fi
-
-  echo 0;
+  echo $single_mode
+  return $single_mode;
 }
 
 function pro() {
   eval "$(parse_flags_ "pro_" "aerupf" "$@")"
+  (( pro_is_d )) && set -x
 
   if (( pro_is_h )); then
     print "${yellow_cor} pro <pro>${reset_cor} : to set a project"
@@ -2511,7 +2529,7 @@ function pro() {
   # set the current project
   save_current_proj_ $i
 
-  (( is_d )) && print_current_proj $i
+  # (( is_d )) && print_current_proj $i
 
   if (( is_refresh )); then
     print " project set to: ${solid_blue_cor}$Z_CURRENT_PROJECT_SHORT_NAME${reset_cor} with ${solid_magenta_cor}$Z_CURRENT_PACKAGE_MANAGER${reset_cor}"
@@ -2533,6 +2551,7 @@ function pro() {
 
 function refix() {
   eval "$(parse_flags_ "refix_" "" "$@")"
+  (( refix_is_d )) && set -x
 
   if (( refix_is_h )); then
     print "${yellow_cor} refix${reset_cor} : to reset last commit then run fix then re-push"
@@ -2601,6 +2620,7 @@ function refix() {
 
 function covc() {
   eval "$(parse_flags_ "covc_" "" "$@")"
+  (( covc_is_d )) && set -x
 
   if (( covc_is_h )); then
     print "${yellow_cor} covc <branch>${reset_cor} : to compare test coverage with another branch of the same project"
@@ -2627,6 +2647,11 @@ function covc() {
   local _setup="$Z_CURRENT_SETUP"
   local _clone="$Z_CURRENT_CLONE"
   local _cov="$Z_CURRENT_COV"
+
+  if [[ -z "$proj_folder" || -z "$proj_name" ]]; then
+    print " project is missing, please specify a project, type ${yellow_cor}pro -h${reset_cor} to see usage" >&2
+    return 1;
+  fi
 
   if [[ -z "$_cov" || -z "$_setup" ]]; then
     print " Z_COV or Z_SETUP is missing for ${blue_cor}${proj_name}${reset_cor} - edit your pump.zshenv then run${yellow_cor} refresh ${reset_cor}" >&2
@@ -2658,9 +2683,7 @@ function covc() {
   #   fi
   # fi
 
-  local is_single_mode=$(is_project_single_mode_ 0)
-
-  if (( is_single_mode )); then
+  if is_project_single_mode_ 0 &>/dev/null; then
     cov_folder=".$proj_folder-coverage"
   else
     cov_folder="$proj_folder/.coverage"
@@ -2840,6 +2863,7 @@ function covc() {
 
 function test() {
   eval "$(parse_flags_ "test_" "" "$@")"
+  (( test_is_d )) && set -x
 
   if (( test_is_h )); then
     print "${yellow_cor} test${reset_cor} : to run Z_TEST"
@@ -2863,6 +2887,7 @@ function test() {
 
 function cov() {
   eval "$(parse_flags_ "cov_" "" "$@")"
+  (( cov_is_d )) && set -x
 
   if (( cov_is_h )); then
     print "${yellow_cor} cov${reset_cor} : to run Z_COV"
@@ -2899,6 +2924,7 @@ function cov() {
 
 function testw() {
   eval "$(parse_flags_ "testw_" "" "$@")"
+  (( testw_is_d )) && set -x
 
   if (( testw_is_h )); then
     print "${yellow_cor} testw${reset_cor} : to run Z_TEST_WATCH"
@@ -2912,6 +2938,7 @@ function testw() {
 
 function e2e() {
   eval "$(parse_flags_ "e2e_" "" "$@")"
+  (( e2e_is_d )) && set -x
 
   if (( e2e_is_h )); then
     print "${yellow_cor} e2e${reset_cor} : to run Z_E2E"
@@ -2930,6 +2957,7 @@ function e2e() {
 
 function e2eui() {
   eval "$(parse_flags_ "e2eui_" "" "$@")"
+  (( e2eui_is_d )) && set -x
 
   if (( e2eui_is_h )); then
     print "${yellow_cor} e2eui${reset_cor} : to run Z_E2EUI"
@@ -2948,6 +2976,7 @@ function e2eui() {
 
 function add() {
   eval "$(parse_flags_ "add_" "" "$@")"
+  (( add_is_d )) && set -x
 
   if (( add_is_h )); then
     print "${yellow_cor} add${reset_cor} : to add all files to index"
@@ -2967,6 +2996,7 @@ function add() {
 # Creating PRs =============================================================
 function pr() {
   eval "$(parse_flags_ "pr_" "t" "$@")"
+  (( pr_is_d )) && set -x
 
   if (( pr_is_h )); then
     print "${yellow_cor} pr${reset_cor} : to create a pull request"
@@ -3103,7 +3133,7 @@ function pr() {
   if [[ -n "$Z_CURRENT_PROJECT_REPO" ]]; then
     if [[ -z "$Z_CURRENT_LABEL_PR" || "$Z_CURRENT_LABEL_PR" -eq 0 ]]; then
       local labels=("none" "${(@f)$(gh label list --repo "$Z_CURRENT_PROJECT_REPO" --limit 25 | awk '{print $1}')}")
-      local choose_labels=$(choose_multiple_ "choose labels" "${labels[@]}")
+      local choose_labels=$(choose_multiple_ 0 "choose labels" "${labels[@]}")
       if [[ -z "$choose_labels" ]]; then
         return 1;
       fi
@@ -3123,6 +3153,7 @@ function pr() {
 
 function run() {
   eval "$(parse_flags_ "run_" "" "$@")"
+  (( run_is_d )) && set -x
 
   if (( run_is_h )); then
     print "${yellow_cor} run${reset_cor} : to run dev in current folder"
@@ -3198,7 +3229,7 @@ function run() {
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
-        if [ -z "$proj_folder" ]; then return 1; fi
+        if [[ -z "$proj_folder" ]]; then return 1; fi
 
         _run="${Z_RUN[$i]}"
 
@@ -3222,29 +3253,29 @@ function run() {
   local folder_to_run=""
 
   if [[ -n "$folder_arg" && -n "$proj_folder" ]]; then
-    check_any_pkg_ "$proj_folder/$folder_arg"
+    check_pkg_ "$proj_folder/$folder_arg"
     if (( $? != 0 )); then return 1; fi
     folder_to_run="$proj_folder/$folder_arg"
   elif [[ -n "$proj_folder" ]]; then
     # check if proj_folder is a project
-    check_any_pkg_silent_ "$proj_folder"
+    check_pkg_silent_ "$proj_folder"
     if (( $? == 0 )); then
       folder_to_run="$proj_folder"
     else
-      if [[ -n ${(f)"$(get_folders_ "$proj_folder")"} ]]; then
-        local folders=($(get_folders_ "$proj_folder"))
-        folder_to_run=($(choose_auto_one_ "choose folder to run" "${folders[@]}"))
+      local dirs=($(get_folders_ "$proj_folder"))
+      if (( ${#dirs[@]} )); then
+        folder_to_run=($(choose_auto_one_ "choose folder to run" "${dirs[@]}"))
         if [[ -z "$folder_to_run" ]]; then
           return 0;
         fi
       fi
     fi
   elif [[ -n "$folder_arg" ]]; then
-    check_any_pkg_ "$folder_arg"
+    check_pkg_ "$folder_arg"
     if (( $? != 0 )); then return 1; fi
     folder_to_run="$folder_arg"
   else
-    check_any_pkg_;
+    check_pkg_;
     if (( $? != 0 )); then return 1; fi
     folder_to_run="."
   fi
@@ -3264,6 +3295,7 @@ function run() {
 
 function setup() {
   eval "$(parse_flags_ "setup_" "" "$@")"
+  (( setup_is_d )) && set -x
 
   if (( setup_is_h )); then
       print "${yellow_cor} setup${reset_cor} : to setup current folder"
@@ -3297,7 +3329,7 @@ function setup() {
     for i in {1..9}; do
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
         proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
-        if [ -z "$proj_folder" ]; then return 1; fi
+        if [[ -z "$proj_folder" ]]; then return 1; fi
 
         _setup="${Z_SETUP[$i]:-${Z_PACKAGE_MANAGER[$i]} $([[ ${Z_PACKAGE_MANAGER[$i]} == "yarn" ]] && echo "" || echo "run ")setup}"
         break
@@ -3319,29 +3351,29 @@ function setup() {
   local folder_to_setup=""
 
   if [[ -n "$folder_arg" && -n "$proj_folder" ]]; then
-    check_any_pkg_ "$proj_folder/$folder_arg"
+    check_pkg_ "$proj_folder/$folder_arg"
     if (( $? != 0 )); then return 1; fi
     folder_to_setup="$proj_folder/$folder_arg"
   elif [[ -n "$proj_folder" ]]; then
     # check if proj_folder is a project
-    check_any_pkg_silent_ "$proj_folder"
+    check_pkg_silent_ "$proj_folder"
     if (( $? == 0 )); then
       folder_to_setup="$proj_folder"
     else
-      if [[ -n ${(f)"$(get_folders_ "$proj_folder")"} ]]; then
-        folders=($(get_folders_ "$proj_folder"))
-        folder_to_setup=($(choose_auto_one_ "choose folder to setup" "${folders[@]}"))
+      local dirs=($(get_folders_ "$proj_folder"))
+      if (( ${#dirs[@]} )); then
+        folder_to_setup=($(choose_auto_one_ "choose folder to setup" "${dirs[@]}"))
         if [[ -z "$folder_to_setup" ]]; then
           return 0;
         fi
       fi
     fi
   elif [[ -n "$folder_arg" ]]; then
-    check_any_pkg_ "$folder_arg"
+    check_pkg_ "$folder_arg"
     if (( $? != 0 )); then return 1; fi
     folder_to_setup="$folder_arg"
   else
-    check_any_pkg_;
+    check_pkg_;
     if (( $? != 0 )); then return 1; fi
     folder_to_setup="."
   fi
@@ -3362,6 +3394,7 @@ function setup() {
 # review branch
 function revs() {
   eval "$(parse_flags_ "revs_" "" "$@")"
+  (( revs_is_d )) && set -x
 
   if (( revs_is_h )); then
     if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
@@ -3402,7 +3435,7 @@ function revs() {
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
-      if [ -z "$proj_folder" ]; then return 1; fi
+      if [[ -z "$proj_folder" ]]; then return 1; fi
       break
     fi
   done
@@ -3451,6 +3484,7 @@ function revs() {
 
 function rev() {
   eval "$(parse_flags_ "rev_" "" "$@")"
+  (( rev_is_d )) && set -x
 
   if (( rev_is_h )); then
     print "${yellow_cor} rev${reset_cor} : open a pull request for review"
@@ -3492,10 +3526,10 @@ function rev() {
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       proj_repo="$(get_prj_repo_ -s $i)"
-      if [ -z "$proj_repo" ]; then return 1; fi
+      if [[ -z "$proj_repo" ]]; then return 1; fi
       
       proj_folder="$(get_prj_folder_ -s $i)"
-      if [ -z "$proj_folder" ]; then return 1; fi
+      if [[ -z "$proj_folder" ]]; then return 1; fi
 
       _setup="${Z_SETUP[$i]}"
       _clone="${Z_CLONE[$i]}"
@@ -3506,12 +3540,12 @@ function rev() {
   done
 
   if [[ -z "$proj_repo" ]]; then
-    print " could not locate repository uri: $proj_arg" >&2
+    print " missing repository uri for: $proj_arg" >&2
     return 1;
   fi
 
   if [[ -z "$proj_folder" ]]; then
-    print " could not locate project folder: $proj_arg" >&2
+    print " missing project folder for: $proj_arg" >&2
     return 1;
   fi
 
@@ -3657,6 +3691,8 @@ function get_clone_default_branch_() { # $1 = repo uri # $2 = folder # $3 = bran
   local default_branch="$(git config --get init.defaultBranch)"
   local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
 
+  print_debug_ "get_clone_default_branch_ default_branch: $default_branch - my_branch: $my_branch"
+
   popd &>/dev/null
 
   rm -rf "$2/.temp" &>/dev/null
@@ -3677,6 +3713,8 @@ function get_clone_default_branch_() { # $1 = repo uri # $2 = folder # $3 = bran
     fi
   fi
 
+  print_debug_ "get_clone_default_branch_ after fact default_branch: $default_branch - my_branch: $my_branch"
+
   local default_branch_choice="";
 
   if [[ "$my_branch" != "$default_branch" && -n "$default_branch" && -n "$my_branch" ]]; then
@@ -3691,12 +3729,15 @@ function get_clone_default_branch_() { # $1 = repo uri # $2 = folder # $3 = bran
     return 1;
   fi
 
+  print_debug_ "get_clone_default_branch_ default_branch_choice: $default_branch_choice"
+
   echo "$default_branch_choice"
 }
 
 # clone my project and checkout branch
 function clone() {
   eval "$(parse_flags_ "clone_" "" "$@")"
+  (( clone_is_d )) && set -x
 
   if (( clone_is_h )); then
     if [[ -n "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
@@ -3753,34 +3794,51 @@ function clone() {
   local print_readme=1
   local single_mode=""
 
+  local found=0
   local i=0
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+      found=$i
       proj_repo="$(get_prj_repo_ -s $i)"
-      if [ -z "$proj_repo" ]; then return 1; fi
+      print_debug_ "clone proj_repo: $proj_repo"
+      if [[ -z "$proj_repo" ]]; then return 1; fi
 
       proj_folder="$(get_prj_folder_ -s $i)"
-      if [ -z "$proj_folder" ]; then return 1; fi
+      if [[ -z "$proj_folder" ]]; then return 1; fi
 
       _clone="${Z_CLONE[$i]}"
       default_branch="${Z_DEFAULT_BRANCH[$i]}"
       print_readme="${Z_PRINT_README[$i]}"
-      single_mode=$(is_project_single_mode_ $i)
+      single_mode="${Z_PROJECT_SINGLE_MODE[$i]}"
       break
     fi
   done
 
+  if (( found == 0 )); then
+    print " not a valid project: $proj_arg" >&2
+    print " ${yellow_cor} clone -h${reset_cor} to see usage" >&2
+    return 1;
+  fi
+
   if [[ -z "$proj_repo" ]]; then
-    print " could not locate repository uri: $proj_arg" >&2
+    print " missing repository uri for: $proj_arg" >&2
     return 1;
   fi
 
   if [[ -z "$proj_folder" ]]; then
-    print " could not locate project folder: $proj_arg" >&2
+    print " missing project folder for: $proj_arg" >&2
     return 1;
   fi
 
-  if (( single_mode )); then
+  if [[ -z "$single_mode" ]]; then
+    # ask user if they want to single project mode, or multiple mode
+    single_mode=$(choose_mode_ $proj_arg 1)
+    if (( $? == 130 )); then
+      return 130;
+    fi
+  fi
+
+  if (( single_mode )) && [[ -n "$(ls -A "$proj_folder" 2>/dev/null)" ]]; then
     print "${solid_blue_cor} $proj_arg${reset_cor} already cloned in 'single mode': $proj_folder" >&2
     print "" >&2
     print " to clone a different branch, edit the project to 'multiple mode':" >&2
@@ -3789,127 +3847,109 @@ function clone() {
     return 1;
   fi
 
-  local user_selected_mode=0;
+  print_debug_ "clone single_mode: $single_mode - proj_arg: $proj_arg - branch_arg: $branch_arg - proj_repo: $proj_repo - proj_folder: $proj_folder"
 
-  if [[ -z "$branch_arg" && -z "$single_mode" ]]; then
-    # ask user if they want to single project mode, or multiple mode
-    single_mode=$(choose_mode_ $proj_arg 1)
-    if (( $? == 130 )); then
-      return 130;
+  if (( single_mode )); then
+    branch_arg=$(get_clone_default_branch_ "$proj_repo" "$proj_folder" "$branch_arg");
+    if [[ -z "$branch_arg" ]]; then
+      return 0;
     fi
 
-    user_selected_mode=1;
+    if command -v gum &>/dev/null; then
+      gum spin --title "cloning... $proj_repo on $branch_arg" -- git clone $proj_repo "$proj_folder" --quiet
+      echo "   cloning... $proj_repo on $branch_arg"
+    else
+      print "  cloning... $proj_repo on $branch_arg"
+      git clone --quiet $proj_repo "$proj_folder"
+    fi
+    if (( $? != 0 )); then
+      print "  could not clone" >&2
+      if [[ -d "$proj_folder" ]]; then
+        print "  project folder already exists: $proj_folder" >&2
+      fi
+      return 1;
+    fi
 
-    if (( single_mode )); then
-      if [[ -d "$proj_folder" && -n "$(ls -A "$proj_folder")" ]]; then
-        print "  ${solid_yellow_cor}project folder '$proj_folder' is not empty, going with 'multi mode' ${reset_cor}"
-      else
-        local default_branch_to_clone=$(get_clone_default_branch_ "$proj_repo" "$proj_folder");
+    pushd "$proj_folder" &>/dev/null
 
-        if [[ -z "$default_branch_to_clone" ]]; then
-          return 0;
-        fi
+    git checkout "$branch_arg" --quiet &>/dev/null
 
-        if command -v gum &>/dev/null; then
-          gum spin --title "cloning... $proj_repo on $default_branch_to_clone" -- git clone $proj_repo "$proj_folder" --quiet
-          echo "   cloning... $proj_repo on $default_branch_to_clone"
-        else
-          print "  cloning... $proj_repo on $default_branch_to_clone"
-          git clone --quiet $proj_repo "$proj_folder"
-        fi
-        if (( $? != 0 )); then
-          print "  could not clone" >&2
-          if [[ -d "$proj_folder" ]]; then
-            print "  project folder already exists: $proj_folder" >&2
-          fi
-          return 1;
-        fi        
+    # if (( $? == 0 )); then
+    #   save_pump_working_ "$proj_arg"
+    # fi
 
-        pushd "$proj_folder" &>/dev/null
+    if [[ -n "$_clone" ]]; then
+      print "  ${pink_cor}$_clone ${reset_cor}"
+      eval "$_clone"
+    fi
 
-        git config init.defaultBranch "$default_branch_to_clone"
-        git checkout "$default_branch_to_clone" --quiet &>/dev/null
-
-        save_pump_working_ "$proj_arg"
-
-        #refresh >/dev/null 2>&1
-
-        if [[ -n "$_clone" ]]; then
-          print "  ${pink_cor}$_clone ${reset_cor}"
-          eval "$_clone"
-        fi
-
-        if [[ $print_readme -eq 1 ]] && command -v glow &>/dev/null; then
-          # find readme file
-          local readme_file=$(find . -type f \( -iname "README*" -o -iname "readme*" \) | head -n 1);
-          if [[ -n "$readme_file" ]]; then
-            glow "$readme_file"
-          fi
-        fi
-
-        print ""
-        print "  default branch is${bright_green_cor} $(git config --get init.defaultBranch) ${reset_cor}"
-        print ""
-
-        if [[ "$proj_arg" != "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
-          pro $proj_arg
-        fi
-        return 0;
+    if [[ $print_readme -eq 1 ]] && command -v glow &>/dev/null; then
+      # find readme file
+      local readme_file=$(find . -type f \( -iname "README*" -o -iname "readme*" \) | head -n 1);
+      if [[ -n "$readme_file" ]]; then
+        glow "$readme_file"
       fi
     fi
-    # end of (( single_mode ))
+
+    print ""
+    print "  default branch is${bright_green_cor} $(git config --get init.defaultBranch) ${reset_cor}"
+    print ""
+
+    if [[ "$proj_arg" != "$Z_CURRENT_PROJECT_SHORT_NAME" ]]; then
+      pro $proj_arg
+    fi
+    return 0;
   fi
+  # end of (( single_mode ))
 
   # multiple mode (requires passing a branch name)
 
   local branch_to_clone=""
   
-  if [[ -n "$branch_arg" ]]; then
-    branch_to_clone="$branch_arg"
-  else
-    if (( user_selected_mode )); then # first time user is cloning
-      branch_to_clone=$(get_clone_default_branch_ "$proj_repo" "$proj_folder");
-    else
-      branch_to_clone=$(input_name_ "type the branch name" "" 50);
+  if [[ -z "$branch_arg" ]]; then
+    if [[ -z "$(ls -A "$proj_folder" 2>/dev/null)" ]]; then # first time user is cloning
+      branch_arg=$(get_clone_default_branch_ "$proj_repo" "$proj_folder");
     fi
 
-    if [[ -z "$branch_to_clone" ]]; then
+    if [[ -z "$branch_arg" ]]; then
+      branch_arg=$(input_name_ "type the branch name" "" 40);
+    fi
+
+    if [[ -z "$branch_arg" ]]; then
       return 0;
     fi
   fi
 
-  if [[ -z "$default_branch" ]]; then
-    if [[ -n "$branch_arg" ]]; then
-      default_branch=$(get_clone_default_branch_ "$proj_repo" "$proj_folder" "$branch_arg");
+  print_debug_ "clone single_mode: branch_arg: $branch_arg"
 
-      if [[ -z "$default_branch" ]]; then
-        return 0;
-      fi
-    else
-      default_branch="$branch_to_clone"
+  if [[ -z "$default_branch" ]]; then
+    default_branch=$(get_clone_default_branch_ "$proj_repo" "$proj_folder" "$branch_arg");
+
+    if [[ -z "$default_branch" ]]; then
+      return 0;
     fi
 
     if confirm_from_ "save '$default_branch' as the default branch for $proj_arg and don't ask again?"; then
-      local i=0
-      for i in {1..9}; do
-        if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          update_config_ $i "Z_DEFAULT_BRANCH" "$default_branch"
-          Z_DEFAULT_BRANCH[$i]="$default_branch"
-          break
-        fi
-      done
+      if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$found]}" ]]; then
+        update_config_ $found "Z_DEFAULT_BRANCH" "$default_branch"
+        Z_DEFAULT_BRANCH[$found]="$default_branch"
+        break
+      fi
       print ""
     fi
   fi
 
-  local branch_to_clone_folder="${branch_to_clone//\\/-}"
+
+  print_debug_ "clone single_mode: default_branch: $default_branch"
+
+  local branch_to_clone_folder="${branch_arg//\\/-}"
   branch_to_clone_folder="${branch_to_clone_folder//\//-}"
 
   if command -v gum &>/dev/null; then
-    gum spin --title "cloning... $proj_repo on $branch_to_clone" -- git clone $proj_repo "$proj_folder/$branch_to_clone_folder" --quiet
-    echo "   cloning... $proj_repo on $branch_to_clone"
+    gum spin --title "cloning... $proj_repo on $branch_arg" -- git clone $proj_repo "$proj_folder/$branch_to_clone_folder" --quiet
+    echo "   cloning... $proj_repo on $branch_arg"
   else
-    print "  cloning... $proj_repo on $branch_to_clone"
+    print "  cloning... $proj_repo on $branch_arg"
     git clone --quiet $proj_repo "$proj_folder/$branch_to_clone_folder"
   fi
   if (( $? != 0 )); then
@@ -3925,22 +3965,22 @@ function clone() {
   local past_folder="$(PWD)"
 
   pushd "$proj_folder/$branch_to_clone_folder" &>/dev/null
-  if (( $? == 0 )); then
-    PUMP_PAST_FOLDER="$past_folder"
-    save_pump_working_ "$proj_arg"
-  fi
+
+  # if (( $? == 0 )); then
+  #   save_pump_working_ "$proj_arg"
+  # fi
   
   git config init.defaultBranch $default_branch
 
-  if [[ "$branch_to_clone" != "$(git symbolic-ref --short HEAD 2>/dev/null)" ]]; then
+  if [[ "$branch_arg" != "$(git symbolic-ref --short HEAD 2>/dev/null)" ]]; then
     # check if branch exist
-    local remote_branch=$(git ls-remote --heads origin "$branch_to_clone")
-    local local_branch=$(git branch --list "$branch_to_clone" | head -n 1)
+    local remote_branch=$(git ls-remote --heads origin "$branch_arg")
+    local local_branch=$(git branch --list "$branch_arg" | head -n 1)
 
     if [[ -z "$remote_branch" && -z "$local_branch" ]]; then
-      git checkout -b "$branch_to_clone" --quiet
+      git checkout -b "$branch_arg" --quiet
     else
-      git checkout "$branch_to_clone" --quiet
+      git checkout "$branch_arg" --quiet
     fi
   fi
 
@@ -3970,6 +4010,7 @@ function clone() {
 
 function abort() {
   eval "$(parse_flags_ "abort_" "" "$@")"
+  (( abort_is_d )) && set -x
 
   if (( abort_is_h )); then
     print "${yellow_cor} abort${reset_cor} : to abort any in progress rebase, merge and cherry-pick"
@@ -3985,6 +4026,7 @@ function abort() {
 
 function renb() {
   eval "$(parse_flags_ "renb_" "" "$@")"
+  (( renb_is_d )) && set -x
 
   if (( renb_is_h )); then
     print "${yellow_cor} renb <branch>${reset_cor} : to rename a branch"
@@ -4007,6 +4049,7 @@ function renb() {
 
 function chp() {
   eval "$(parse_flags_ "chp_" "" "$@")"
+  (( chp_is_d )) && set -x
 
   if (( chp_is_h )); then
     print "${yellow_cor} chp <commit>${reset_cor} : to cherry-pick a commit"
@@ -4025,6 +4068,7 @@ function chp() {
 
 function chc() {
   eval "$(parse_flags_ "chc_" "" "$@")"
+  (( chc_is_d )) && set -x
 
   if (( chc_is_h )); then
     print "${yellow_cor} chc${reset_cor} : to continue in progress cherry-pick"
@@ -4038,6 +4082,7 @@ function chc() {
 
 function mc() {
   eval "$(parse_flags_ "mc_" "" "$@")"
+  (( mc_is_d )) && set -x
 
   if (( mc_is_h )); then
     print "${yellow_cor} mc${reset_cor} : to continue in progress merge"
@@ -4053,6 +4098,7 @@ function mc() {
 
 function rc() {
   eval "$(parse_flags_ "rc_" "" "$@")"
+  (( rc_is_d )) && set -x
 
   if (( rc_is_h )); then
     print "${yellow_cor} rc${reset_cor} : to continue in progress rebase"
@@ -4068,6 +4114,7 @@ function rc() {
 
 function conti() {
   eval "$(parse_flags_ "conti_" "" "$@")"
+  (( conti_is_d )) && set -x
 
   if (( conti_is_h )); then
     print "${yellow_cor} conti${reset_cor} : to continue any in progress rebase, merge or cherry-pick"
@@ -4086,6 +4133,7 @@ function conti() {
 # Commits -----------------------------------------------------------------------
 function reset1() {
   eval "$(parse_flags_ "reset1_" "" "$@")"
+  (( reset1_is_d )) && set -x
 
   if (( reset1_is_h )); then
     print "${yellow_cor} reset1${reset_cor} : to reset last commit"
@@ -4101,6 +4149,7 @@ function reset1() {
 
 function reset2() {
   eval "$(parse_flags_ "reset2_" "" "$@")"
+  (( reset2_is_d )) && set -x
 
   if (( reset2_is_h )); then
     print "${yellow_cor} reset2${reset_cor} : to reset 2 last commits"
@@ -4116,6 +4165,7 @@ function reset2() {
 
 function reset3() {
   eval "$(parse_flags_ "reset3_" "" "$@")"
+  (( reset3_is_d )) && set -x
 
   if (( reset3_is_h )); then
     print "${yellow_cor} reset3${reset_cor} : to reset 3 last commits"
@@ -4131,6 +4181,7 @@ function reset3() {
 
 function reset4() {
   eval "$(parse_flags_ "reset4_" "" "$@")"
+  (( reset4_is_d )) && set -x
 
   if (( reset4_is_h )); then
     print "${yellow_cor} reset4${reset_cor} : to reset 4 last commits"
@@ -4146,6 +4197,7 @@ function reset4() {
 
 function reset5() {
   eval "$(parse_flags_ "reset5_" "" "$@")"
+  (( reset5_is_d )) && set -x
 
   if (( reset5_is_h )); then
     print "${yellow_cor} reset5${reset_cor} : to reset 5 last commits"
@@ -4161,6 +4213,7 @@ function reset5() {
 
 function repush() {
   eval "$(parse_flags_ "repush_" "s" "$@")"
+  (( repush_is_d )) && set -x
 
   if (( repush_is_h )); then
     print "${yellow_cor} repush${reset_cor} : to reset last commit then re-push all changes"
@@ -4181,6 +4234,7 @@ function repush() {
 
 function recommit() {
   eval "$(parse_flags_ "recommit_" "s" "$@")"
+  (( recommit_is_d )) && set -x
 
   if (( recommit_is_h )); then
     print "${yellow_cor} recommit${reset_cor} : to reset last commit then re-commit all changes"
@@ -4245,6 +4299,7 @@ function recommit() {
 
 function commit() {
   eval "$(parse_flags_ "commit_" "a" "$@")"
+  (( commit_is_d )) && set -x
 
   if (( commit_is_h )); then
     print "${yellow_cor} commit${reset_cor} : to open commit wizard"
@@ -4344,6 +4399,7 @@ function commit() {
 
 function fetch() {
   eval "$(parse_flags_ "fetch_" "" "$@")"
+  (( fetch_is_d )) && set -x
 
   if (( fetch_is_h )); then
     print "${yellow_cor} fetch${reset_cor} : to fetch all branches"
@@ -4367,6 +4423,7 @@ function fetch() {
     local branch_name="${config#branch.}"
 
     if ! echo "$current_branches" | grep -q "^$branch_name$"; then
+      print_debug_ "fetch cleaning branch_name: $branch_name"
       git config --remove-section "branch."$branch_name"" &>/dev/null
     fi
   done
@@ -4382,6 +4439,7 @@ function gconf() {
 
 function glog() {
   eval "$(parse_flags_ "glog_" "" "$@")"
+  (( glog_is_d )) && set -x
 
   if (( glog_is_h )); then
     print "${yellow_cor} glog ${solid_yellow_cor}[x]${reset_cor} : to log last x commits, default is 15"
@@ -4408,6 +4466,7 @@ function glog() {
 
 function push() {
   eval "$(parse_flags_ "push_" "flt" "$@")"
+  (( push_is_d )) && set -x
 
   if (( push_is_h )); then
     print "${yellow_cor} push${reset_cor} : to push with no-verify"
@@ -4447,6 +4506,7 @@ function push() {
 
 function pushf() {
   eval "$(parse_flags_ "pf_" "ltq" "$@")"
+  (( pf_is_d )) && set -x
 
   if (( is_h )); then
     print "${yellow_cor} pushf${reset_cor} : to force push no-verify"
@@ -4476,6 +4536,7 @@ function pushf() {
 
 function stash() {
   eval "$(parse_flags_ "stash_" "" "$@")"
+  (( stash_is_d )) && set -x
 
   if (( stash_is_h )); then
     print "${yellow_cor} stash ${reset_cor} : to stash all files unnamed"
@@ -4495,6 +4556,7 @@ function stash() {
 
 function dtag() {
   eval "$(parse_flags_ "dtag_" "" "$@")"
+  (( dtag_is_d )) && set -x
 
   if (( dtag_is_h )); then
     print "${yellow_cor} dtag <name>${reset_cor} : to delete a tag"
@@ -4530,20 +4592,9 @@ function print_debug_() {
   fi
 }
 
-function exec_() {
-  print_debug_ "$1" >&2
-
-  if (( is_d )); then
-    return 0;
-  fi
-
-  local command="$1"
-  shift
-  eval "$command $@"
-}
-
 function pull() {
   eval "$(parse_flags_ "pull_" "lq" "$@")"
+  (( pull_is_d )) && set -x
 
   if (( pull_is_h )); then
     print "${yellow_cor} pull${reset_cor} : to pull from origin branch"
@@ -4567,6 +4618,7 @@ function pull() {
 
 function tag() {
   eval "$(parse_flags_ "tag_" "" "$@")"
+  (( tag_is_d )) && set -x
 
   if (( tag_is_h )); then
     print "${yellow_cor} tag <name>${reset_cor} : to create a new tag"
@@ -4594,6 +4646,7 @@ function tag() {
 
 function tags() {
   eval "$(parse_flags_ "tags_" "" "$@")"
+  (( tags_is_d )) && set -x
 
   if (( tags_is_h )); then
     print "${yellow_cor} tags${reset_cor} : to list all tags"
@@ -4635,6 +4688,7 @@ function tags() {
 
 function restore() {
   eval "$(parse_flags_ "restore_" "" "$@")"
+  (( restore_is_d )) && set -x
 
   if (( restore_is_h )); then
     print "${yellow_cor} restore${reset_cor} : to undo edits in tracked files"
@@ -4648,6 +4702,7 @@ function restore() {
 
 function clean() {
   eval "$(parse_flags_ "clean_" "" "$@")"
+  (( clean_is_d )) && set -x
 
   if (( clean_is_h )); then
     print "${yellow_cor} clean${reset_cor} : to delete all untracked files and directories and undo edits in tracked files"
@@ -4662,6 +4717,7 @@ function clean() {
 
 function discard() {
   eval "$(parse_flags_ "discard_" "" "$@")"
+  (( discard_is_d )) && set -x
 
   if (( discard_is_h )); then
     print "${yellow_cor} discard${reset_cor} : to undo everything that have not been committed"
@@ -4676,6 +4732,7 @@ function discard() {
 
 function reseta() {
   eval "$(parse_flags_ "reseta_" "" "$@")"
+  (( reseta_is_d )) && set -x
 
   if (( reseta_is_h )); then
     print "${yellow_cor} reseta${reset_cor} : to erase everything and match HEAD to origin"
@@ -4762,6 +4819,7 @@ function get_prj_for_git_() {
 # list remote branches that contains an optional text and adds a link to the branch in github
 function glr() {
   eval "$(parse_flags_ "glr_" "" "$@")"
+  (( glr_is_d )) && set -x
 
   if (( glr_is_h )); then
     print "${yellow_cor} gll${reset_cor} : to list remote branches"
@@ -4786,6 +4844,7 @@ function glr() {
 # list only branches that contains an optional text
 function gll() {
   eval "$(parse_flags_ "gll_" "" "$@")"
+  (( gll_is_d )) && set -x
 
   if (( gll_is_h )); then
     print "${yellow_cor} gll${reset_cor} : to list branches"
@@ -4878,7 +4937,7 @@ function select_branch_() {
   local select_branch_choice=""
 
   if (( multiple )); then
-    select_branch_choice=$(choose_multiple_ "choose branches" $(echo "$branch_choices" | tr ' ' '\n'))
+    select_branch_choice=$(choose_multiple_ 0 "choose branches" $(echo "$branch_choices" | tr ' ' '\n'))
   else
     local branch_choices_count=$(echo "$branch_choices" | wc -l)
     print_debug_ "select_branch_ : branch_choices_count=$branch_choices_count"
@@ -4992,6 +5051,7 @@ function gha_() {
 
 function gha() {
   eval "$(parse_flags_ "gha_" "" "$@")"
+  (( gha_is_d )) && set -x
 
   if (( gha_is_h )); then
     print "${yellow_cor} gha${solid_yellow_cor} [<workflow>]${reset_cor} : to check status of workflow in current project"
@@ -5047,7 +5107,7 @@ function gha() {
   for i in {1..9}; do
     if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
       proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
-      if [ -z "$proj_folder" ]; then return 1; fi
+      if [[ -z "$proj_folder" ]]; then return 1; fi
 
       gha_interval="${Z_GHA_INTERVAL[$i]}"
       gha_workflow="${Z_GHA_WORKFLOW[$i]}"
@@ -5150,6 +5210,7 @@ function gha() {
 
 function co() {
   eval "$(parse_flags_ "co_" "aprebx" "$@")"
+  (( co_is_d )) && set -x
 
   if (( co_is_h )); then
     print "${yellow_cor} co${reset_cor} : to list local branches to switch"
@@ -5350,6 +5411,7 @@ function co() {
 
 function next() {
   eval "$(parse_flags_ "next_" "" "$@")"
+  (( next_is_d )) && set -x
 
   if (( next_is_h )); then
     print "${yellow_cor} next${reset_cor} : to go the next folder and branch"
@@ -5367,6 +5429,7 @@ function next() {
 
 function prev() {
   eval "$(parse_flags_ "prev_" "" "$@")"
+  (( prev_is_d )) && set -x
 
   if (( prev_is_h )); then
     print "${yellow_cor} prev${reset_cor} : to go the previous folder and branch"
@@ -5408,6 +5471,7 @@ function open_working_() {
 # checkout dev or develop branch
 function dev() {
   eval "$(parse_flags_ "dev_" "" "$@")"
+  (( dev_is_d )) && set -x
 
   if (( dev_is_h )); then
     print "${yellow_cor} dev${reset_cor} : to switch to dev or develop in current project"
@@ -5427,6 +5491,7 @@ function dev() {
 # checkout main branch
 function main() {
   eval "$(parse_flags_ "main_" "" "$@")"
+  (( main_is_d )) && set -x
 
   if (( main_is_h )); then
     print "${yellow_cor} main${reset_cor} : to switch to main in current project"
@@ -5446,6 +5511,7 @@ function main() {
 # checkout stage branch
 function stage() {
   eval "$(parse_flags_ "stage_" "" "$@")"
+  (( stage_is_d )) && set -x
 
   if (( stage_is_h )); then
       print "${yellow_cor} main${reset_cor} : to switch to stage or staging in current project"
@@ -5465,11 +5531,13 @@ function stage() {
 # Merging & Rebasing -----------------------------------------------------------------------=
 # rebase $1 or main
 function rebase() {
-  eval "$(parse_flags_ "rebase_" "" "$@")"
+  eval "$(parse_flags_ "rebase_" "p" "$@")"
+  (( rebase_is_d )) && set -x
 
   if (( rebase_is_h )); then
       print "${yellow_cor} rebase${reset_cor} : to apply the commits from your branch on top of the HEAD commit of $(git config --get init.defaultBranch)"
       print "${yellow_cor} rebase${solid_yellow_cor} [<branch>]${reset_cor} : to apply the commits from your branch on top of the HEAD commit of a branch"
+      print "${yellow_cor} rebase -p${reset_cor} : push after rebase succeeds with no conflicts"
     return 0;
   fi
 
@@ -5489,20 +5557,20 @@ function rebase() {
   print " rebase from branch${blue_cor} "$main_branch" ${reset_cor}"
   git rebase origin/"$main_branch"
 
-  if (( $? == 0 )); then
-    if confirm_from_ "done. now git push?"; then
-      git push --force-with-lease --no-verify --set-upstream origin "$my_branch"
-    fi
+  if (( $? == 0 && rebase_is_p )); then
+    git push --force-with-lease --no-verify --set-upstream origin "$my_branch"
   fi
 }
 
 # merge branch $1 or default branch
 function merge() {
-  eval "$(parse_flags_ "merge_" "" "$@")"
+  eval "$(parse_flags_ "merge_" "p" "$@")"
+  (( merge_is_d )) && set -x
 
   if (( merge_is_h )); then
       print "${yellow_cor} merge${reset_cor} : to create a new merge commit from $(git config --get init.defaultBranch)"
       print "${yellow_cor} merge${solid_yellow_cor} [<branch>]${reset_cor} : to create a new merge commit from a branch"
+      print "${yellow_cor} merge -p${reset_cor} : push after merge succeeds with no conflicts"
     return 0;
   fi
 
@@ -5522,16 +5590,15 @@ function merge() {
   print " merge from branch${blue_cor} "$main_branch" ${reset_cor}"
   git merge origin/"$main_branch" --no-edit
 
-  if (( $? == 0 )); then
-    if confirm_from_ "done. now git push?"; then
-      git push --no-verify --set-upstream origin "$my_branch"
-    fi
+  if (( $? == 0 && merge_is_p )); then
+    git push --no-verify --set-upstream origin "$my_branch"
   fi
 }
 
 # Delete branches ===========================================================
 function prune() {
   eval "$(parse_flags_ "prune_" "" "$@")"
+  (( prune_is_d )) && set -x
 
   if (( prune_is_h )); then
       print "${yellow_cor} prune${reset_cor} : to clean up unreachable or orphaned git branches and tags"
@@ -5564,6 +5631,7 @@ function prune() {
 
     # Check if the branch exists locally
     if ! echo "$current_branches" | grep -q "^$branch_name$"; then
+      print_debug_ "prune cleaning branch_name: $branch_name"
       git config --remove-section "branch."$branch_name"" &>/dev/null
     fi
   done
@@ -5574,11 +5642,12 @@ function prune() {
 # list branches and select one to delete or delete $1
 function delb() {
   eval "$(parse_flags_ "delb_" "s" "$@")"
+  (( delb_is_d )) && set -x
 
   if (( delb_is_h )); then
     print "${yellow_cor} delb${solid_yellow_cor} [<branch>]${reset_cor} : to find branches to delete"
     print "${yellow_cor} delb <branch>${solid_yellow_cor} [<branch>]${reset_cor} : to find branches to delete"
-    print "${yellow_cor} delb -s${reset_cor} : to delete without confirmation"
+    print "${yellow_cor} delb -s${reset_cor} : skip confirmation"
     return 0;
   fi
 
@@ -5649,6 +5718,7 @@ function delete_pump_workings_(){
 
 function pop() {
   eval "$(parse_flags_ "pop_" "a" "$@")"
+  (( pop_is_d )) && set -x
 
   if (( pop_is_h )); then
     print "${yellow_cor} pop${reset_cor} : to pop stash"
@@ -5667,6 +5737,7 @@ function pop() {
 
 function st() {
   eval "$(parse_flags_ "st_" "" "$@")"
+  (( st_is_d )) && set -x
 
   if (( st_is_h )); then
     print "${yellow_cor} st${reset_cor} : to show git status"
@@ -5680,6 +5751,7 @@ function st() {
 
 function stashes() {
   eval "$(parse_flags_ "stashes_" "" "$@")"
+  (( stashes_is_d )) && set -x
 
   if (( stashes_is_h )); then
     print "${yellow_cor} stashes${reset_cor} : to show git stashes"
@@ -5728,9 +5800,9 @@ function load_config_entry_() {
     # If the value is not set, provide default values for specific keys
     if [[ -z "$value" ]]; then
       case "$key" in
-        Z_PROJECT_SINGLE_MODE)
-          value="0"
-          ;;
+        # Z_PROJECT_SINGLE_MODE)
+        #   value="0"
+        #   ;;
         Z_PACKAGE_MANAGER)
           value="npm"
           ;;
@@ -5957,6 +6029,7 @@ function z_project_handler_() { # pump() project()
   shift
 
   eval "$(parse_flags_ "z_project_handler_" "lm" "$@")"
+  (( z_project_handler_is_d )) && set -x
   
   local proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
   if [[ -z "$proj_folder" ]]; then return 1; fi
@@ -5976,10 +6049,11 @@ function z_project_handler_() { # pump() project()
   fi
 
   if (( z_project_handler_is_l )); then
-    local folders=($(get_folders_ "$proj_folder"))
-    if [[ -n "${folders[*]}" ]]; then
-      for folder in "${folders[@]}"; do
-        print "${pink_cor} $folder ${reset_cor}"
+    local dirs=($(get_folders_ "$proj_folder"))
+    if (( ${#dirs[@]} )); then
+      local dir=""
+      for dir in "${dirs[@]}"; do
+        print "${pink_cor} $dir ${reset_cor}"
       done
     else
       print " no folders"
@@ -6020,9 +6094,9 @@ function z_project_handler_() { # pump() project()
       (( ! use_default_folder )) && folder_arg="${proj_folder}/${folder_arg}"
     else
       folder_arg="$proj_folder"
-      local folders=($(get_folders_ "$proj_folder"))
-      if [[ -n "${folders[*]}" ]]; then
-        local chosen_folder=($(choose_auto_one_ "choose folder" "${folders[@]}"))
+      local dirs=($(get_folders_ "$proj_folder"))
+      if (( ${#dirs[@]} )); then
+        local chosen_folder=($(choose_auto_one_ "choose folder to open" "${dirs[@]}"))
         print_debug_ "z_project_handler_: chosen_folder: $chosen_folder"
         if [[ -n "$chosen_folder" ]]; then
           folder_arg="${proj_folder}/${chosen_folder}"
