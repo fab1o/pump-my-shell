@@ -4534,6 +4534,7 @@ function push() {
 
   (( quiet = push_is_t || ${argv[(Ie)--quiet]} ))
 
+  RET=0;
   if (( push_is_t && push_is_f )); then
     git push --no-verify --tags --force $@
     RET=$?
@@ -4543,7 +4544,7 @@ function push() {
   elif (( push_is_f && push_is_l )); then
     git push --no-verify --force-with-lease --set-upstream origin "$my_branch" $@
     RET=$?
-    if (( ! RET && quiet == 0 )); then
+    if (( RET != 0 && quiet == 0 )); then
       if confirm_from_ "try push force?"; then
         pushf -f $@
         return $?;
@@ -4555,7 +4556,7 @@ function push() {
   else
     git push --no-verify --set-upstream origin "$my_branch" $@
     RET=$?
-    if (( ! RET && quiet == 0 )); then
+    if (( RET != 0 && quiet == 0 )); then
       if confirm_from_ "try push force with lease?"; then
         pushf -fl $@
         return $?;
