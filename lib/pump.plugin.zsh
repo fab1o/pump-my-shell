@@ -2462,9 +2462,12 @@ function which_pro_index_pwd_() {
 
 function which_pro_pwd_() {
   local i=0
+  local current_path=$(realpath "$(pwd)" 2>/dev/null)
   for i in {1..9}; do
     if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" && -n "${Z_PROJECT_FOLDER[$i]}" ]]; then
-      if [[ $(pwd) == $Z_PROJECT_FOLDER[$i]* ]]; then
+      local proj_path=$(realpath "${Z_PROJECT_FOLDER[$i]}" 2>/dev/null)
+      if [[ -n "$proj_path" && $current_path == $proj_path* ]]; then
+        print_debug_ "which_pro_pwd_ index: found! $i"
         echo "${Z_PROJECT_SHORT_NAME[$i]}"
         return 0;
       fi
@@ -2754,6 +2757,7 @@ function pro() {
     return 0;
   fi
 
+  # pro pwd
   if [[ "$proj_arg" == "pwd" ]]; then
     proj_arg=$(which_pro_pwd_); print_debug_ "which_pro_pwd_: $proj_arg"
     
