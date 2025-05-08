@@ -396,11 +396,11 @@ function update_() {
     print " if you encounter an error after installation, don't worry — simply restart your terminal"
 
     if command -v gum &>/dev/null; then
-      gum spin --title "updating pump-my-shell..." -- sleep 1 &&  \
+      gum spin --title "updating pump-my-shell..." -- \
         /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
     else
       print " updating pump-my-shell..."
-      sleep 1 && /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"  
+      /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"  
     fi
     return 0;
   else
@@ -1578,7 +1578,7 @@ function check_prj_() {
   local i="$1"
 
   if [[ -z "$i" || $i -lt 1 || $i -gt 9 ]]; then
-    print " fatal: check_prj_ project index is invalid: $i"
+    print " fatal: check_prj_ project index is invalid: $i" >&2
     return 1;
   fi
 
@@ -1952,9 +1952,9 @@ function save_prj_() {
   # esac
 
   if (( save_prj_is_e )); then
-    help_line_ "editing project: $Z_PROJECT_SHORT_NAME[$i]" "${solid_magenta_cor}"
+    help_line_ "edit project: $Z_PROJECT_SHORT_NAME[$i]" "${solid_magenta_cor}"
   else
-    help_line_ "adding a new project" "${solid_magenta_cor}"
+    help_line_ "add a new project" "${solid_magenta_cor}"
   fi
 
   save_prj_name_ $i "$2"
@@ -2894,11 +2894,6 @@ function covc() {
   branches2=$(echo "$summary2" | grep "Branches" | awk '{print $3}' | tr -d '%')
   funcs2=$(echo "$summary2" | grep "Functions" | awk '{print $3}' | tr -d '%')
   lines2=$(echo "$summary2" | grep "Lines" | awk '{print $3}' | tr -d '%')
-
-  # print "\033[32m on $branch\033[0m"
-  # print "$summary1"
-  # print "\033[32m on $my_branch\033[0m"
-  # print "$summary2"
 
   # # Print the extracted values
   print ""

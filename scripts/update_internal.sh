@@ -6,7 +6,6 @@ set -e
 SRC_DIR="./lib"
 DEST_DIR="$HOME/.oh-my-zsh/plugins/pump"
 
-#echo " 🔁 Syncing files to $DEST_DIR..."
 mkdir -p "$DEST_DIR" >/dev/null &>/dev/null
 yes | cp -Rf $SRC_DIR/pump.omp.json "$DEST_DIR/pump.omp.json"
 yes | cp -Rf $SRC_DIR/pump.plugin.zsh "$DEST_DIR/pump.plugin.zsh"
@@ -14,7 +13,7 @@ yes | cp -Rf $SRC_DIR/pump.plugin.zsh "$DEST_DIR/pump.plugin.zsh"
 VERSION=$(jq -r '.version' package.json)
 echo "$VERSION" > $DEST_DIR/.version
 
-echo " pump in version $VERSION! - restart your terminal"
+echo " pump in version $VERSION! Now restart your terminal"
 
 # no longer update the config file, instead, just copy if it doesn't exist
 #zsh ./scripts/update_config.zsh
