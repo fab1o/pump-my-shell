@@ -101,6 +101,13 @@ typeset -g pink_cor="\e[0;95m"
 typeset -g purple_cor="\e[38;5;99m"
 # ========================================================================
 
+# General
+alias hg="history | grep" # $1
+alias ll="ls -lAF"
+alias nver="node -e 'console.log(process.version, process.arch, process.platform)'"
+alias nlist="npm list --global --depth=0"
+alias path="echo $PATH"
+
 function cl() {
   typeset -g is_d=0
   tput reset
@@ -344,7 +351,6 @@ function confirm_between_() {
 
 function confirm_from_() {
   #trap 'echo ""; return 130' INT
-
   if command -v gum &>/dev/null; then
     gum confirm ""confirm:$'\e[0m'" $1" --no-show-help
     return $?
@@ -379,7 +385,7 @@ function update_() {
   local latest_version=$(curl -s $release_tag | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
   if [[ -n "$latest_version" && "$PUMP_VERSION" != "$latest_version" ]]; then
-    print " new version available for pump-my-shell:${yellow_cor} $PUMP_VERSION -> $latest_version ${reset_cor}"
+    print " new version available for pump-my-shell: ${magenta_cor}${PUMP_VERSION}${reset_cor} -> ${purple_cor}${latest_version}${reset_cor}"
 
     if (( ! update_is_f )); then
       if ! confirm_from_ "do you want to install new version?"; then
@@ -389,21 +395,22 @@ function update_() {
 
     print " if you encounter an error after installation, don't worry — simply restart your terminal"
 
-    /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
-    return 1;
+    if command -v gum &>/dev/null; then
+      gum spin --title "updating pump-my-shell..." -- \
+        /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
+    else
+      print " updating pump-my-shell..."
+      /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"  
+    fi
+    return 0;
   else
-    print " no update available for pump-my-shell:${yellow_cor} $PUMP_VERSION ${reset_cor}" >&2
+    if (( update_is_f )); then
+      print " no update available for pump-my-shell: ${purple_cor}${PUMP_VERSION}${reset_cor}" >&2
+    fi
   fi
 }
 
-update_ 2>/dev/null
-
-# General
-alias hg="history | grep" # $1
-alias ll="ls -lAF"
-alias nver="node -e 'console.log(process.version, process.arch, process.platform)'"
-alias nlist="npm list --global --depth=0"
-alias path="echo $PATH"
+update_
 
 function kill() {
   if [[ -z "$1" ]]; then
@@ -437,7 +444,6 @@ function input_from_() {
   if command -v gum &>/dev/null; then
     _input=$(gum input --placeholder="$1")
     if (( $? != 0 )); then
-      #clear_last_line_
       return 1;
     fi
   else
@@ -1322,7 +1328,7 @@ function help() {
   print "  to learn more, visit:${blue_cor} https://github.com/fab1o/pump-my-shell/wiki ${reset_cor}"
 }
 
-function delete_pump_working_(){
+function delete_pump_working_() {
   local item="$1"
   local pump_working_branch="$2"
   local proj_arg="$3"
@@ -1343,7 +1349,7 @@ function delete_pump_working_(){
   fi
 }
 
-function delete_pump_workings_(){
+function delete_pump_workings_() {
   local pump_working_branch="$1"
   local proj_arg="$2"
   local selected_items="$3"
@@ -1625,13 +1631,13 @@ function check_prj_() {
 
   return 0;
 }
-# end of data checkers =========================================================
+# end of data checkers
 
 clear_last_line_() {
   print -n "\033[1A\033[2K" >&2
 }
 
-# save project data to config file =========================================
+# save project data to config file
 function save_prj_name_really_() {
   local i="$1"
   local name="${2:-$SAVE_PRJ_NAME_TEMP}"
@@ -2271,6 +2277,25 @@ function check_pkg_() {
   fi
 
   return 0;
+}
+
+function open_prj_for_pkg_() {
+  local folder="${1:-$PWD}"
+
+  if [[ -n "$folder" && -d "$folder" ]]; then
+    if [[ -f "$folder/package.json" ]]; then
+      return 0;
+    fi
+
+    while [[ "$folder" != "/" ]]; do
+      if [[ -f "$folder/package.json" ]]; then
+        return 0;
+      fi
+      folder="$(dirname "$folder")"
+    done
+  fi
+
+  return 1;
 }
 
 function check_pkg_silent_() {
@@ -4671,7 +4696,7 @@ function dtag() {
     # list all tags suing tags command then use choose_multiple_ to select tags, then delete all selected tags
     local tags=$(tags 2>/dev/null)
     if [[ -z "$tags" ]]; then
-      print " no tags found" >&2
+      print " no tags found to delete" >&2
       cd "$_pwd"
       return 0;
     fi
@@ -4748,12 +4773,7 @@ function tag() {
   (( tag_is_d )) && set -x
 
   if (( tag_is_h )); then
-    print "  ${yellow_cor}tag <name>${reset_cor} : to create a new tag"
-    return 0;
-  fi
-
-  if [[ -z "$1" ]]; then
-    tah -h
+    print "  ${yellow_cor}tag ${solid_yellow_cor}[<name>]${reset_cor} : to create a new tag"
     return 0;
   fi
 
@@ -4764,7 +4784,29 @@ function tag() {
   
   prune &>/dev/null
 
-  git tag --annotate "$1" --message "$1" ${@:2}
+  local tag="$1"
+
+  if [[ -z "$tag" ]]; then
+    if [[ -f "package.json" ]]; then
+      tag=$(awk -F'"' '/"version"/ {print $4}' package.json);
+
+      if ! confirm_from_ "create tag: $tag ?"; then
+        tag=""
+      fi
+    fi
+  fi
+
+  if [[ -z "$tag" ]]; then
+    tag=$(input_path_ "type the tag name");
+    clear_last_line_
+  fi
+
+  if [[ -z "$tag" ]]; then
+    cd "$_pwd"
+    return 1;
+  fi
+
+  git tag --annotate "$tag" --message "$tag" ${@:2}
   RET=$?
   if (( RET == 0 )); then
     git push --no-verify --tags
@@ -4793,20 +4835,19 @@ function tags() {
 
   prune &>/dev/null
 
+  local n="${1-100}"
   local tags=""
 
-  if [[ -z "$1" ]]; then
-    tags=$(git for-each-ref refs/tags --sort=-taggerdate --format='%(refname:short)')
+  if (( n == 1 )); then
+    tags=$(git describe --tags --abbrev=0 2>/dev/null)
+  fi
 
-    if [[ -z "$tags" ]]; then
-      tags=$(git for-each-ref refs/tags --sort=-creatordate --format='%(refname:short)')
-    fi
-  else
-    tags=$(git for-each-ref refs/tags --sort=-taggerdate --format='%(refname:short)' --count="${1//[^0-9]/}")
+  if [[ -z "$tags" ]]; then
+    tags=$(git for-each-ref refs/tags --sort=-taggerdate --format='%(refname:short)' --count="$n")
+  fi
 
-    if [[ -z "$tags" ]]; then
-      tags=$(git for-each-ref refs/tags --sort=-creatordate --format='%(refname:short)' --count="${1//[^0-9]/}")
-    fi
+  if [[ -z "$tags" ]]; then
+    tags=$(git for-each-ref refs/tags --sort=-creatordate --format='%(refname:short)' --count="$n")
   fi
 
   if [[ -z "$tags" ]]; then
