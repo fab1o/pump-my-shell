@@ -2695,7 +2695,7 @@ function covc() {
   check_pkg_; if (( $? != 0 )); then return 1; fi
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  # local git_status=$(git status --porcelain)
+  # local git_status=$(git status --porcelain 2>/dev/null)
   # if [[ -n "$git_status" ]]; then
   #   print " branch is not clean, cannot switch branches";
   #   return 1;
@@ -3195,7 +3195,7 @@ function pr() {
       fi
     fi
   elif (( $Z_CURRENT_PR_RUN_TEST || pr_is_t )); then
-    local git_status=$(git status --porcelain)
+    local git_status=$(git status --porcelain 2>/dev/null)
     if [[ -n "$git_status" ]]; then
       if ! confirm_from_ "skip test?"; then
         return 0;
@@ -3715,7 +3715,7 @@ function rev() {
 
   pushd "$full_rev_folder" &>/dev/null
   
-  local git_status=$(git status --porcelain)
+  local git_status=$(git status --porcelain 2>/dev/null)
   if [[ -n "$git_status" ]]; then
     if ! confirm_from_ "branch is not clean, reset?"; then
       return 0;
@@ -4323,14 +4323,14 @@ function repush() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   if (( repush_is_s )); then
-    recommit -s $@
+    recommit -s --quiet >/dev/null
   else
-    recommit $@
+    recommit --quiet >/dev/null
   fi
-
+  
   if (( $? != 0 )); then return 1; fi
   
-  push -fl $@
+  pushf -l $@
 }
 
 function recommit() {
@@ -4345,13 +4345,13 @@ function recommit() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  local git_status=$(git status --porcelain)
+  local git_status=$(git status --porcelain 2>/dev/null)
   if [[ -z "$git_status" ]]; then
     print " nothing to recommit, working tree clean"
     return 0;
   fi
 
-  local last_commit_msg=$(git log -1 --pretty=format:'%s' | xargs -0)
+  local last_commit_msg=$(git log -1 --pretty=format:'%s' | xargs -0 2>/dev/null)
   
   if [[ "$last_commit_msg" == Merge* ]]; then
     print " last commit is a merge commit, please rebase instead" >&2
@@ -4395,7 +4395,7 @@ function recommit() {
 
   git commit -m "$last_commit_msg" $@
 
-  if (( $? == 0 && ! recommit_is_q && ! ${argv[(Ie)--quiet]} )); then
+  if (( $? == 0 && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
     git log -1 --pretty=format:'%H %s' | pbcopy
@@ -4608,33 +4608,35 @@ function push() {
 
   (( quiet = push_is_t || ${argv[(Ie)--quiet]} ))
 
-  RET=0;
   if (( push_is_t && push_is_f )); then
     git push --no-verify --tags --force $@
-    RET=$?
-  elif (( push_is_t )); then
+    return $?;
+  fi
+
+  if (( push_is_t )); then
     git push --no-verify --tags $@
-    RET=$?
-  elif (( push_is_f && push_is_l )); then
-    git push --no-verify --force-with-lease --set-upstream origin "$my_branch" $@
-    RET=$?
-    if (( RET != 0 && quiet == 0 )); then
-      if confirm_from_ "try push force?"; then
-        pushf -f $@
-        return $?;
-      fi
-    fi
-  elif (( push_is_f )); then
-    git push --no-verify --force --set-upstream origin "$my_branch" $@
-    RET=$?
-  else
-    git push --no-verify --set-upstream origin "$my_branch" $@
-    RET=$?
-    if (( RET != 0 && quiet == 0 )); then
-      if confirm_from_ "try push force with lease?"; then
-        pushf -fl $@
-        return $?;
-      fi
+    return $?;
+  fi
+
+  if (( push_is_f && push_is_l )); then
+    pushf -l $@
+    return $?;
+  fi
+  
+  if (( push_is_f )); then
+    pushf $@
+    return $?;
+  fi
+
+  RET=0;
+
+  git push --no-verify --set-upstream origin "$my_branch" $@
+  RET=$?
+
+  if (( RET != 0 && quiet == 0 )); then
+    if confirm_from_ "try push force with lease?"; then
+      pushf -l $@
+      return $?;
     fi
   fi
 
@@ -4648,7 +4650,7 @@ function push() {
 }
 
 function pushf() {
-  eval "$(parse_flags_ "pushf_" "ltq" "$@")"
+  eval "$(parse_flags_ "pushf_" "lt" "$@")"
   (( pushf_is_d )) && set -x
 
   if (( pushf_is_h )); then
@@ -4673,7 +4675,7 @@ function pushf() {
     RET=$?
   fi
 
-  if (( RET == 0 && ! pushf_is_t && ! pushf_is_q && ! ${argv[(Ie)--quiet]} )); then
+  if (( RET == 0 && ! pushf_is_t && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
     git log -1 --pretty=format:'%H %s' | pbcopy
@@ -4771,7 +4773,7 @@ function pull() {
     fi
   fi
 
-  if [[ -z "$branch" ]]; then
+  if [[ -n "$branch" ]]; then
     git pull origin "$branch" --rebase --autostash $@
     RET=$?
   else
@@ -4808,7 +4810,7 @@ function tag() {
 
   if [[ -z "$tag" ]]; then
     if [[ -f "package.json" ]]; then
-      tag=$(awk -F'"' '/"version"/ {print $4}' package.json);
+      tag=$(jq -r '.version' package.json);
 
       if ! confirm_from_ "create tag: $tag ?"; then
         tag=""

@@ -14,7 +14,7 @@ if [[ ! -f "$DEST_CONFIG" ]]; then
   #echo " 📦 copying configuration file..."
 
   mkdir -p "$DEST_DIR_CONFIG"
-  yes | cp -Rf "$SRC_CONFIG" "$DEST_CONFIG"
+  cp "$SRC_CONFIG" "$DEST_CONFIG"
   exit 0
 fi
 

@@ -30,7 +30,7 @@ fi
 
 rm pump-my-shell.zip &>/dev/null
 
-pushd temp/pump-my-shell-$TAG &>/dev/null
+pushd "temp/pump-my-shell-$TAG" &>/dev/null
 if [ $? -ne 0 ]; then
     rm -rf temp &>/dev/null
     echo " failed to change directory to temp/pump-my-shell-$TAG, try running: "
@@ -39,7 +39,7 @@ if [ $? -ne 0 ]; then
 fi
 
 if command -v zsh &>/dev/null; then
-  zsh ./scripts/update.zsh
+  bash ./scripts/update_internal.sh
 else
   echo " no Zsh found, install Oh My Zsh, then run the script again to finish the installation"
   echo " \033[94m https://ohmyz.sh/\033[0m"

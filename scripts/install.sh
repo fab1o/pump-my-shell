@@ -73,7 +73,7 @@ if command -v zsh &>/dev/null; then
     exit 1
   fi
 
-  zsh ./scripts/update.zsh
+  bash ./scripts/update_internal.sh
   zsh ./scripts/edit_zshrc.zsh
   bash ./scripts/check_zshrc.sh
 
