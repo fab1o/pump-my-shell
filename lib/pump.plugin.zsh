@@ -2878,6 +2878,7 @@ function refix() {
 
   git add .
   git commit -m "$last_commit_msg" "$@"
+  if (( $? != 0 )); then return 1; fi
 
   if [[ -n "$Z_CURRENT_PUSH_ON_REFIX" && $Z_CURRENT_PUSH_ON_REFIX -eq 0 ]]; then
     return 0;
@@ -5022,11 +5023,14 @@ function pull() {
 }
 
 function release() {
-  eval "$(parse_flags_ "release_" "" "$@")"
+  eval "$(parse_flags_ "release_" "mnp" "$@")"
   (( release_is_d )) && set -x
 
   if (( release_is_is_h )); then
     print "  ${yellow_cor}release ${solid_yellow_cor}[<tag>]${reset_cor} : to create a new release"
+    print "  ${yellow_cor}release -m${reset_cor} : to create a major release"
+    print "  ${yellow_cor}release -n${reset_cor} : to create a minor release"
+    print "  ${yellow_cor}release -p${reset_cor} : to create a patch release"
     return 0;
   fi
 
@@ -5036,27 +5040,98 @@ function release() {
     return 1;
   fi
 
+  local _pwd="$(pwd)";
+
   check_git_; if (( $? != 0 )); then return 1; fi
+  check_pkg_; if (( $? != 0 )); then return 1; fi
+
+  if [[ -n "$(git status --porcelain)" ]]; then
+    print " uncommitted changes detected, commit or stash them before proceeding" >&2
+    return 1
+  fi
+
+  local current_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+
+  # check if name is conventional
+  if ! [[ "$current_branch" =~ ^(main|master|stage|staging|pro|production|release)$ || "$current_branch" == release* ]]; then
+    print " warning: unconventional branch to release: $current_branch"
+  fi
 
   local tag="$1"
 
   if [[ -z "$tag" ]]; then
-    tag="$(tags 1)"
-    if [[ -z "$tag" ]]; then
-      cd "$_pwd"
-      return 1;
+    local latest_tag=$(tags 1 2>/dev/null)
+    local pkg_tag=""
+    if [[ -f "package.json" ]]; then
+      if command -v jq &>/dev/null; then
+        pkg_tag=$(jq -r '.version' package.json);
+      else
+        pkg_tag=$(grep '"version"' package.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+      fi
+    fi
+
+    if [[ -n "$latest_tag" && "$latest_tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+      latest_tag=${latest_tag#v}
+    fi
+    if [[ -n "$pkg_tag" && "$pkg_tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+      pkg_tag=${pkg_tag#v}
+    fi
+
+    if [[ "$(printf '%s\n%s' "$latest_tag" "$pkg_tag" | sort -V | tail -n1)" == "$pkg_tag" ]]; then
+      tag="$pkg_tag"
+    else
+      tag="$latest_tag"
     fi
   fi
 
-  tag "$tag"
-  if (( $? != 0 )); then
+  if [[ -z "$tag" ]]; then
+    print " no tag found" >&2
     cd "$_pwd"
     return 1;
   fi
 
-  push -t
+  if [[ "$tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+    tag=${tag#v}
+  fi
 
-  gh release create "$tag" --title "$tag" ${@:2}
+  version="0.0.0"
+  IFS='.' read -r major_version minor_version patch_version <<< "$tag"
+
+  if (( release_is_is_m )); then
+    ((major_version++))
+    minor_version=0
+    patch_version=0
+  elif (( release_is_is_n )); then
+    ((minor_version++))
+    patch_version=0
+  elif (( release_is_is_p )); then
+    ((patch_version++))
+  fi
+
+  tag="${major_version}.${minor_version}.${patch_version}"
+
+  if [[ "$tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+    print " not able to build tag: ${major_version}.${minor_version}.${patch_version}" >&2
+    cd "$_pwd"
+    return 1;
+  fi
+
+  git add .
+  if (( $? != 0 )); then cd "$_pwd"; return 1; fi
+
+  #git add package.json *.lock *lock.json 2>/dev/null
+  git commit -m "chore: bump version to $tag" --no-verify
+  if (( $? != 0 )); then cd "$_pwd"; return 1; fi
+
+  tag "$tag"
+  if (( $? != 0 )); then cd "$_pwd"; return 1; fi
+
+  gh release create "$tag" --title "$tag" --generate-notes
+  RET=$?
+
+  cd "$_pwd"
+
+  return $RET;
 }
 
 function tag() {
@@ -5071,6 +5146,7 @@ function tag() {
   local _pwd="$(pwd)";
 
   check_git_; if (( $? != 0 )); then return 1; fi
+  check_pkg_; if (( $? != 0 )); then return 1; fi
   
   prune &>/dev/null
 
@@ -5078,7 +5154,11 @@ function tag() {
 
   if [[ -z "$tag" ]]; then
     if [[ -f "package.json" ]]; then
-      tag=$(jq -r '.version' package.json);
+      if command -v jq &>/dev/null; then
+        tag=$(jq -r '.version' package.json);
+      else
+        tag=$(grep '"version"' package.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+      fi
 
       if ! confirm_from_ "create tag: $tag ?"; then
         tag=""
