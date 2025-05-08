@@ -430,7 +430,7 @@ function refresh() {
   #(( refresh_is_d )) && set -x # do not turn on for refresh
 
   if [[ -f "$HOME/.zshrc" ]]; then
-    source "$HOME/.zshrc"
+    source "$HOME/.zshrc" &>/dev/null
   fi
 }
 
@@ -585,6 +585,129 @@ function get_folders_() {
   echo "${filtered[@]}"
   
   cd "$_pwd"
+}
+
+typeset -g COMMIT1=""
+typeset -g COMMIT2=""
+
+if command -v c &>/dev/null; then
+  if (( ${+functions[c]} && -n "${functions[c]}" )); then
+    unset -f c
+    COMMIT1="c"
+    if ! command -v commit &>/dev/null; then
+      COMMIT2="commit"
+    fi
+  else
+    COMMIT1="commit"
+  fi
+else
+  COMMIT1="c"
+  if ! command -v commit &>/dev/null; then
+    COMMIT2="commit"
+  fi
+fi
+
+eval "
+  function ${COMMIT1}() {
+    __commit \"\$@\"
+  }
+"
+
+if [[ -n "$COMMIT2" ]]; then
+  eval "
+    function ${COMMIT2}() {
+      __commit \"\$@\"
+    }
+  "
+fi
+
+function __commit() {
+  eval "$(parse_flags_ "commit_" "a" "$@")"
+  (( commit_is_d )) && set -x
+
+  if (( commit_is_h )); then
+    print "  ${yellow_cor}${COMMIT1}${reset_cor} : to open commit wizard"
+    print "  ${yellow_cor}${COMMIT1} -a${reset_cor} : to open wizard and commit all files"
+    print "  ${yellow_cor}${COMMIT1} <message>${reset_cor} : to commit with message"
+    print "  ${yellow_cor}${COMMIT1} -a <message>${reset_cor} : to commit all files with message"
+    return 0;
+  fi
+
+  check_git_; if (( $? != 0 )); then return 1; fi
+
+  if (( commit_is_a || Z_CURRENT_COMMIT_ADD )); then
+    git add .
+  elif [[ -z "$Z_CURRENT_COMMIT_ADD" ]]; then
+    if confirm_from_ "commit all changes?"; then
+      git add .
+
+      if confirm_from_ "save this preference and don't ask again?"; then
+        local i=0
+        for i in {1..9}; do
+          if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+            Z_CURRENT_COMMIT_ADD=1
+            update_config_ $i "Z_COMMIT_ADD" 1
+            break
+          fi
+        done
+        print ""
+      fi
+    fi
+  fi
+
+  if [[ -z "$1" ]]; then
+    if ! command -v gum &>/dev/null; then
+      print " commit wizard requires gum" >&2
+      print " install gum:${blue_cor} https://github.com/charmbracelet/gum ${reset_cor}" >&2
+      return 1;
+    fi
+
+    local type_commit=$(gum choose "fix" "feat" "docs" "refactor" "test" "chore" "style" "revert")
+    if [[ -z "$type_commit" ]]; then
+      return 0;
+    fi
+
+    # scope is optional
+    scope_commit=$(gum input --placeholder "scope")
+    if (( $? != 0 )); then
+      return 0;
+    fi
+    if [[ -n "$scope_commit" ]]; then
+      scope_commit="($scope_commit)"
+    fi
+
+    local msg_arg=""
+
+    msg_arg="$(gum input --value "${type_commit}${scope_commit}: ")"
+    if (( $? != 0 )); then
+      return 0;
+    fi
+
+    local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+    
+    if [[ $my_branch =~ ([[:alnum:]]+-[[:digit:]]+) ]]; then # [A-Z]+-[0-9]+
+      local ticket="${match[1]} "
+      local skip=0;
+
+      git log -n 10 --pretty=format:"%h %s" | while read -r line; do
+        commit_hash=$(echo "$line" | awk '{print $1}')
+        message=$(echo "$line" | cut -d' ' -f2-)
+
+        if [[ "$message" == "$ticket"* ]]; then
+          skip=1;
+          break;
+        fi
+      done
+
+      if [[ $skip -eq 0 ]]; then
+        msg_arg="$ticket $commit_msg"
+      fi
+    fi
+
+    git commit --no-verify --message "$msg_arg" $@
+  else
+    git commit --no-verify --message "$1" ${@:2}
+  fi  
 }
 
 # Deleting a path
@@ -1337,8 +1460,13 @@ function help() {
   help_line_ "git push" "${solid_cyan_cor}"
   print ""
   print " ${solid_cyan_cor} add ${reset_cor}\t\t = add files to index"
-  print " ${solid_cyan_cor} commit ${reset_cor}\t = open commit wizard"
-  print " ${solid_cyan_cor} commit <m>${reset_cor}\t = commit message"
+  if [[ "$COMMIT1" == "c" ]]; then
+    print " ${solid_cyan_cor} $COMMIT1 ${reset_cor}\t\t = open commit wizard"
+    print " ${solid_cyan_cor} $COMMIT1 <m>${reset_cor}\t\t = commit message"
+  else
+    print " ${solid_cyan_cor} $COMMIT1 ${reset_cor}\t = open commit wizard"
+    print " ${solid_cyan_cor} $COMMIT1 <m>${reset_cor}\t = commit message"
+  fi
   print " ${solid_cyan_cor} pr ${reset_cor}\t\t = create pull request"
   print " ${solid_cyan_cor} push ${reset_cor}\t\t = push all no-verify to origin"
   print " ${solid_cyan_cor} pushf ${reset_cor}\t = push force all to origin"
@@ -1362,17 +1490,17 @@ function help() {
     return 0;
   fi
   
-  # help_line_ "git stash" "${solid_cyan_cor}"
-  # print ""
-  # print " ${solid_cyan_cor} pop ${reset_cor}\t\t = apply stash then remove from list"
-  # print " ${solid_cyan_cor} stash ${reset_cor}\t = stash all files"
+  help_line_ "git stash" "${solid_cyan_cor}"
+  print ""
+  print " ${solid_cyan_cor} pop ${reset_cor}\t\t = apply stash then remove from list"
+  print " ${solid_cyan_cor} stash ${reset_cor}\t = stash files"
 
   print ""
   help_line_ "git release" "${solid_cyan_cor}"
   print ""
   print " ${solid_cyan_cor} dtag ${reset_cor}\t\t = delete a tag"
-  print " ${solid_cyan_cor} drelease ${reset_cor}\t\t = delete a release"
-  print " ${solid_cyan_cor} release ${reset_cor}\t\t = create a release"
+  print " ${solid_cyan_cor} drelease ${reset_cor}\t = delete a release"
+  print " ${solid_cyan_cor} release ${reset_cor}\t = create a release"
   print " ${solid_cyan_cor} tag ${reset_cor}\t\t = create a tag"
   print " ${solid_cyan_cor} tags ${reset_cor}\t\t = list latest tags"
   print " ${solid_cyan_cor} tags 1 ${reset_cor}\t = display latest tag"
@@ -1397,6 +1525,7 @@ function help() {
   print " ${pink_cor} cov <b> ${reset_cor}\t = compare test coverage with another branch"
   print " ${pink_cor} refix ${reset_cor}\t = reset last commit, run fix then re-commit/push"
   print " ${pink_cor} recommit ${reset_cor}\t = reset last commit then re-commit changes to index"
+  print " ${pink_cor} release ${reset_cor}\t\t = bump version and create a release in github"
   print " ${pink_cor} repush ${reset_cor}\t = reset last commit then re-push changes to index"
   print " ${pink_cor} rev ${reset_cor}\t\t = open a pull request for review on $Z_CURRENT_CODE_EDITOR"
   print ""
@@ -2838,7 +2967,7 @@ function refix() {
   (( refix_is_d )) && set -x
 
   if (( refix_is_h )); then
-    print "  ${yellow_cor}refix${reset_cor} : to reset last commit then run fix then re-push"
+    print "  ${yellow_cor}refix${reset_cor} : to reset last commit then run fix lint and format then re-push"
     return 0;
   fi
 
@@ -2848,7 +2977,7 @@ function refix() {
   last_commit_msg=$(git log -1 --pretty=format:'%s' | xargs -0)
   
   if [[ "$last_commit_msg" == Merge* ]]; then
-    print " last commit is a merge commit, please rebase instead" >&2 
+    print " last commit is a merge commit, won't do, create a new commit instead" >&2 
     return 1;
   fi
 
@@ -4536,7 +4665,7 @@ function repush() {
   (( repush_is_d )) && set -x
 
   if (( repush_is_h )); then
-    print "  ${yellow_cor}repush${reset_cor} : to reset last commit then re-push all changes"
+    print "  ${yellow_cor}repush${reset_cor} : to reset last commit without losing your changes then re-push all changes using the same message"
     print "  ${yellow_cor}repush -s${reset_cor} : only staged changes"
     return 0;
   fi
@@ -4559,7 +4688,7 @@ function recommit() {
   (( recommit_is_d )) && set -x
 
   if (( recommit_is_h )); then
-    print "  ${yellow_cor}recommit${reset_cor} : to reset last commit then re-commit all changes"
+    print "  ${yellow_cor}recommit${reset_cor} : to reset last commit without losing your changes then re-commit all changes using the same message"
     print "  ${yellow_cor}recommit -s${reset_cor} : only staged changes"
     return 0;
   fi
@@ -4568,14 +4697,14 @@ function recommit() {
 
   local git_status=$(git status --porcelain 2>/dev/null)
   if [[ -z "$git_status" ]]; then
-    print " nothing to recommit, working tree clean"
+    print " nothing to do, working tree clean"
     return 0;
   fi
 
   local last_commit_msg=$(git log -1 --pretty=format:'%s' | xargs -0 2>/dev/null)
   
   if [[ "$last_commit_msg" == Merge* ]]; then
-    print " last commit is a merge commit, please rebase instead" >&2
+    print " last commit is a merge commit, won't do, create a new commit instead" >&2
     return 1;
   fi
 
@@ -4620,106 +4749,6 @@ function recommit() {
     print ""
     git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
     git log -1 --pretty=format:'%H %s' | pbcopy
-  fi
-}
-
-function commit() {
-  eval "$(parse_flags_ "commit_" "a" "$@")"
-  (( commit_is_d )) && set -x
-
-  if (( commit_is_h )); then
-    print "  ${yellow_cor}commit${reset_cor} : to open commit wizard"
-    print "  ${yellow_cor}commit -a${reset_cor} : to open wizard and commit all files"
-    print "  ${yellow_cor}commit <message>${reset_cor} : to commit with message"
-    print "  ${yellow_cor}commit -a <message>${reset_cor} : to commit all files with message"
-    return 0;
-  fi
-
-  check_git_; if (( $? != 0 )); then return 1; fi
-
-  local msg_arg=""
-
-  if (( commit_is_a )); then
-    git add .
-    msg_arg="$2"
-  else
-    msg_arg="$1"
-    if [[ -z "$Z_CURRENT_COMMIT_ADD" ]]; then
-      if confirm_from_ "commit all changes?"; then
-        git add .
-
-        if confirm_from_ "save this preference and don't ask again?"; then
-          local i=0
-          for i in {1..9}; do
-            if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-              update_config_ $i "Z_COMMIT_ADD" 1
-              Z_CURRENT_COMMIT_ADD=1
-              break
-            fi
-          done
-          print ""
-        fi
-      fi
-    elif [[ $Z_CURRENT_COMMIT_ADD -eq 1 ]]; then
-      git add .
-    fi
-  fi
-
-  if [[ -z "$msg_arg" ]]; then
-    if ! command -v gum &>/dev/null; then
-      print " commit wizard requires gum" >&2
-      print " install gum:${blue_cor} https://github.com/charmbracelet/gum ${reset_cor}" >&2
-      print " or ${yellow_cor}commit <message>${reset_cor} : to create a commit with message" >&2
-      return 1;
-    fi
-
-    local type_commit=$(gum choose "fix" "feat" "docs" "refactor" "test" "chore" "style" "revert")
-    if [[ -z "$type_commit" ]]; then
-      return 0;
-    fi
-
-    # scope is optional
-    scope_commit=$(gum input --placeholder "scope")
-    if (( $? != 0 )); then
-      return 0;
-    fi
-    if [[ -n "$scope_commit" ]]; then
-      scope_commit="($scope_commit)"
-    fi
-
-    msg_arg=$(gum input --value "${type_commit}${scope_commit}: ")
-    if (( $? != 0 )); then
-      return 0;
-    fi
-
-    local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
-    
-    if [[ $my_branch =~ ([[:alnum:]]+-[[:digit:]]+) ]]; then # [A-Z]+-[0-9]+
-      local ticket="${match[1]} "
-      local skip=0;
-
-      git log -n 10 --pretty=format:"%h %s" | while read -r line; do
-        commit_hash=$(echo "$line" | awk '{print $1}')
-        message=$(echo "$line" | cut -d' ' -f2-)
-
-        if [[ "$message" == "$ticket"* ]]; then
-          skip=1;
-          break;
-        fi
-      done
-
-      if [[ $skip -eq 0 ]]; then
-        msg_arg="$ticket $commit_msg"
-      fi
-    fi
-
-    print "$msg_arg"
-  fi
-
-  if (( commit_is_a )); then
-    git commit --no-verify --message "$msg_arg" ${@:3}
-  else
-    git commit --no-verify --message "$msg_arg" ${@:2}
   fi
 }
 
@@ -5062,6 +5091,11 @@ function drelease() {
         print " deleting release: $tag"
         gh release delete "$tag" --cleanup-tag -y
       fi
+      if (( $? == 0 )); then
+        print " deleted release: $tag"
+      else
+        print " failed to delete release: $tag" >&2
+      fi
     done
     return 0;
   fi
@@ -5091,7 +5125,7 @@ function release() {
   check_pkg_; if (( $? != 0 )); then return 1; fi
 
   if [[ -n "$(git status --porcelain)" ]]; then
-    print " uncommitted changes detected, commit or stash them before proceeding" >&2
+    print " uncommitted changes detected, ${yellow_cor}commit${reset_cor} or ${yellow_cor}stash${reset_cor} them before proceeding" >&2
     return 1
   fi
 
@@ -5117,9 +5151,7 @@ function release() {
       elif (( release_is_p )); then
         release_type="patch"
       else
-        print " no release type specified" >&2
-        print "  ${yellow_cor}release -h${reset_cor} for usage" >&2
-        return 1;
+        release_type="patch"
       fi
 
       pull --quiet
@@ -5129,7 +5161,7 @@ function release() {
       version_not_bumped=$?
 
       if (( version_not_bumped == 0 )); then
-        tag=$(npm pkg get version --workspaces=false | tr -d '"')
+        tag=$(npm pkg get version --workspaces=false | tr -d '"' 2>/dev/null)
       fi
     fi
 
@@ -5191,8 +5223,11 @@ function release() {
       print " not able to build tag: ${major_version}.${minor_version}.${patch_version}" >&2
       return 1;
     fi
+  fi
 
+  if [[ -z "$1" ]]; then
     if ! confirm_from_ "create release: $tag ?"; then
+      clean
       return 0;
     fi
   fi
@@ -5206,11 +5241,12 @@ function release() {
   tag "$tag"
   if (( $? != 0 )); then return 1; fi
 
+  push --quiet
+  push -t --quiet
+  if (( $? != 0 )); then return 1; fi
+
   gh release create "$tag" --title "$tag" --generate-notes
   RET=$?
-
-  push -t --quiet
-  push --quiet
 
   return $RET;
 }
@@ -5321,7 +5357,7 @@ function restore() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  git restore -q .
+  git restore --quiet .
 }
 
 function clean() {
@@ -5335,7 +5371,7 @@ function clean() {
 
   check_git_; if (( $? != 0 )); then return 1; fi
   
-  git clean -fd -q
+  git clean -fd --quiet
   RET=$?
 
   if (( RET == 0 )); then
@@ -6770,78 +6806,73 @@ for i in {1..9}; do
   fi
 done
 
+function stash() {
+  eval "$(parse_flags_ "stash_" "vl" "$@")"
+  (( stash_is_d )) && set -x
 
-# function stash() {
-#   eval "$(parse_flags_ "stash_" "vl" "$@")"
-#   (( stash_is_d )) && set -x
+  if (( stash_is_h )); then
+    print "  ${yellow_cor}stash [<name>]${reset_cor} : to stash files"
+    print "  ${yellow_cor}stash -v ${solid_yellow_cor}[n]${reset_cor} : to view latest nth stash"
+    print "  ${yellow_cor}stash -l ${solid_yellow_cor}[n]${reset_cor} : to list stashes, limit by n"
+    return 0;
+  fi
 
-#   if (( stash_is_h )); then
-#     print "  ${yellow_cor}stash [<name>]${reset_cor} : to stash all files"
-#     print "  ${yellow_cor}stash -v ${solid_yellow_cor}[n]${reset_cor} : to view latest nth stash"
-#     print "  ${yellow_cor}stash -l ${solid_yellow_cor}[n]${reset_cor} : to list stashes, limit by n"
-#     return 0;
-#   fi
+  check_git_; if (( $? != 0 )); then return 1; fi
 
-#   check_git_; if (( $? != 0 )); then return 1; fi
+  if (( stash_is_v )); then
+    git stash show -p stash@{${1:-0}}
+    return $?;
+  elif (( stash_is_l )); then
+    git stash list | head -n ${1:-10}
+    return $?;
+  fi
 
-#   if (( stash_is_v )); then
-#     git stash show -p stash@{${1:-0}}
-#     return $?;
-#   elif (( stash_is_l )); then
-#     git stash list | head -n ${1:-10}
-#     return $?;
-#   fi
+  if (( stash_is_v )); then
+    git stash show -p stash@{${1:-0}}
+    return $?;
+  elif (( stash_is_l )); then
+    git stash list | head -n ${1:-10}
+    return $?;
+  fi
 
-#   if (( stash_is_v )); then
-#     git stash show -p stash@{${1:-0}}
-#     return $?;
-#   elif (( stash_is_l )); then
-#     git stash list | head -n ${1:-10}
-#     return $?;
-#   fi
+  if [[ -n "$1" && $1 != --* ]]; then
+    git stash push --include-untracked --message "$1" ${@:2}
+  else
+    git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)" $@
+  fi
+}
 
-#   if [[ -n "$1" ]]; then
-#     git stash push --include-untracked --message "$1" ${@:2}
-#     RET=$?
-#   fi
+function pop() {
+  eval "$(parse_flags_ "pop_" "a" "$@")"
+  (( pop_is_d )) && set -x
 
-#   git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)"
-#   RET=$?
+  if (( pop_is_h )); then
+    print "  ${yellow_cor}pop${reset_cor} : to pop and apply latest stash"
+    print "  ${yellow_cor}pop -a${reset_cor} : to pop and apply all stashes"
+    return 0;
+  fi
 
-#   return $RET;
-# }
+  check_git_; if (( $? != 0 )); then return 1; fi
 
-# function pop() {
-#   eval "$(parse_flags_ "pop_" "a" "$@")"
-#   (( pop_is_d )) && set -x
+  if (( pop_is_a )); then
+    local stashes=()
+    local stash
 
-#   if (( pop_is_h )); then
-#     print "  ${yellow_cor}pop${reset_cor} : to pop stash"
-#     print "  ${yellow_cor}pop -a${reset_cor} : to pop all stashes"
-#     return 0;
-#   fi
+    # Collect stash refs in an array
+    while IFS= read -r line; do
+      stash="${line%%:*}"  # strip everything after the first colon
+      stashes+=("$stash")
+    done < <(git stash list)
 
-#   check_git_; if (( $? != 0 )); then return 1; fi
-
-#   if (( pop_is_a )); then
-#     local stashes=()
-#     local stash
-
-#     # Collect stash refs in an array
-#     while IFS= read -r line; do
-#       stash="${line%%:*}"  # strip everything after the first colon
-#       stashes+=("$stash")
-#     done < <(git stash list)
-
-#     # Pop in reverse order (so indices don’t shift)
-#     for (( i=${#stashes[@]}-1; i>=0; i-- )); do
-#       echo "Popping ${stashes[i]}..."
-#       git stash pop --index "${stashes[i]}" || break
-#     done
-#   else
-#     git stash pop --index
-#   fi
-# }
+    # Pop in reverse order (so indices don’t shift)
+    for (( i=${#stashes[@]}-1; i>=0; i-- )); do
+      echo "Popping ${stashes[i]}..."
+      git stash pop --index "${stashes[i]}" || break
+    done
+  else
+    git stash pop --index
+  fi
+}
 
 
 # ==========================================================================
