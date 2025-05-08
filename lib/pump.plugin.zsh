@@ -2674,14 +2674,35 @@ function covc() {
   # fi
 
   local proj_name="$Z_CURRENT_PROJECT_SHORT_NAME"
-  local proj_folder="$Z_CURRENT_PROJECT_FOLDER"
-  local _setup="$Z_CURRENT_SETUP"
-  local _clone="$Z_CURRENT_CLONE"
-  local _cov="$Z_CURRENT_COV"
-  local single_mode="$Z_CURRENT_PROJECT_SINGLE_MODE"
+  local proj_folder=""
+  local proj_repo=""
+  local _setup=""
+  local _clone=""
+  local _cov=""
+  local single_mode=""
 
-  if [[ -z "$proj_folder" || -z "$proj_name" ]]; then
-    print " project is missing, please specify a project, type ${yellow_cor}pro -h${reset_cor} to see usage" >&2
+  # find project settings
+  if [[ -n "$proj_name" ]]; then
+    local i=0
+    for i in {1..9}; do
+      if [[ "$proj_name" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
+        proj_folder=$(get_prj_folder_ -s $i "$Z_PROJECT_FOLDER[$i]")
+        if [[ -z "$proj_folder" ]]; then return 1; fi
+
+        proj_repo="$(get_prj_repo_ $i "$Z_PROJECT_REPO[$i]")"
+        if [[ -z "$proj_repo" ]]; then return 1; fi
+
+        _setup="${Z_SETUP[$i]}"
+        _clone="${Z_CLONE[$i]}"
+        _cov="${Z_COV[$i]}"
+        single_mode="${Z_PROJECT_SINGLE_MODE[$i]}"
+        break
+      fi
+    done
+  fi
+
+  if [[ -z "$proj_folder" || -z "$proj_name" || -z "$proj_repo" ]]; then
+    print " project settings are missing, please specify a project, type ${yellow_cor}pro -h${reset_cor} to see usage" >&2
     return 1;
   fi
 
@@ -2731,11 +2752,6 @@ function covc() {
     git switch "$branch" --quiet &>/dev/null
     RET=$?
   else
-    local proj_repo="$(get_prj_repo_ $i "$Z_PROJECT_REPO[$i]")"
-    if [[ -z "$proj_repo" ]]; then
-      return 1;
-    fi
-
     rm -rf "$cov_folder" &>/dev/null
     
     gum spin --title "running test coverage on $branch..." -- git clone $proj_repo "$cov_folder" --quiet
