@@ -4271,7 +4271,7 @@ function repush() {
 
   if (( $? != 0 )); then return 1; fi
   
-  pushf $@
+  push -fl $@
 }
 
 function recommit() {
@@ -4618,46 +4618,6 @@ function pushf() {
 
   return $RET;
 }
-
-# function stash() {
-#   eval "$(parse_flags_ "stash_" "vl" "$@")"
-#   (( stash_is_d )) && set -x
-
-#   if (( stash_is_h )); then
-#     print "  ${yellow_cor}stash [<name>]${reset_cor} : to stash all files"
-#     print "  ${yellow_cor}stash -v ${solid_yellow_cor}[n]${reset_cor} : to view latest nth stash"
-#     print "  ${yellow_cor}stash -l ${solid_yellow_cor}[n]${reset_cor} : to list stashes, limit by n"
-#     return 0;
-#   fi
-
-#   check_git_; if (( $? != 0 )); then return 1; fi
-
-#   if (( stash_is_v )); then
-#     git stash show -p stash@{${1:-0}}
-#     return $?;
-#   elif (( stash_is_l )); then
-#     git stash list | head -n ${1:-10}
-#     return $?;
-#   fi
-
-#   if (( stash_is_v )); then
-#     git stash show -p stash@{${1:-0}}
-#     return $?;
-#   elif (( stash_is_l )); then
-#     git stash list | head -n ${1:-10}
-#     return $?;
-#   fi
-
-#   if [[ -n "$1" ]]; then
-#     git stash push --include-untracked --message "$1" ${@:2}
-#     RET=$?
-#   fi
-
-#   git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)"
-#   RET=$?
-
-#   return $RET;
-# }
 
 function dtag() {
   eval "$(parse_flags_ "dtag_" "" "$@")"
@@ -5883,38 +5843,6 @@ function delb() {
   return $RET;
 }
 
-# function pop() {
-#   eval "$(parse_flags_ "pop_" "a" "$@")"
-#   (( pop_is_d )) && set -x
-
-#   if (( pop_is_h )); then
-#     print "  ${yellow_cor}pop${reset_cor} : to pop stash"
-#     print "  ${yellow_cor}pop -a${reset_cor} : to pop all stashes"
-#     return 0;
-#   fi
-
-#   check_git_; if (( $? != 0 )); then return 1; fi
-
-#   if (( pop_is_a )); then
-#     local stashes=()
-#     local stash
-
-#     # Collect stash refs in an array
-#     while IFS= read -r line; do
-#       stash="${line%%:*}"  # strip everything after the first colon
-#       stashes+=("$stash")
-#     done < <(git stash list)
-
-#     # Pop in reverse order (so indices don’t shift)
-#     for (( i=${#stashes[@]}-1; i>=0; i-- )); do
-#       echo "Popping ${stashes[i]}..."
-#       git stash pop --index "${stashes[i]}" || break
-#     done
-#   else
-#     git stash pop --index
-#   fi
-# }
-
 function st() {
   eval "$(parse_flags_ "st_" "" "$@")"
   (( st_is_d )) && set -x
@@ -6186,7 +6114,7 @@ function activate_pro_() {
   fi
 }
 
-activate_pro_
+activate_pro_ # set project
 # ==========================================================================
 
 # project functions =========================================================
@@ -6259,10 +6187,12 @@ function z_project_handler_() { # pump() project()
       (( ! use_default_folder )) && folder_arg="${proj_folder}/${folder_arg}"
     else
       folder_arg="$proj_folder"
+      
       local dirs=($(get_folders_ "$proj_folder"))
+      
       if (( ${#dirs[@]} )); then
         local chosen_folder=($(choose_one_ 1 "choose folder to open" 20 "${dirs[@]}"))
-        print_debug_ "z_project_handler_: chosen_folder: $chosen_folder"
+        
         if [[ -n "$chosen_folder" ]]; then
           folder_arg="${proj_folder}/${chosen_folder}"
         fi
@@ -6287,24 +6217,6 @@ function z_project_handler_() { # pump() project()
       co -e "$default_branch"
     fi
   fi
-
-  # if [[ -n "$folder_arg" ]]; then
-  #   pushd "$folder_arg" &>/dev/null
-  #   if (( $? == 0 )); then
-  #     print_debug_ "z_project_handler_: checking is_git_repo_"
-  #     if is_git_repo_; then
-  #       print_debug_ "z_project_handler_: is_git_repo_ is true"
-  #       local past_branch="$(git branch --show-current)"
-  
-
-
-  #       if (( $? == 0 )); then
-  #         ll_add_node_ "$short_name" "$past_folder" "$past_branch"
-  #       fi
-  #     fi
-  #   fi
-  # fi
-
 }
 
 local i=0
@@ -6317,6 +6229,80 @@ for i in {1..9}; do
     "
   fi
 done
+
+
+# function stash() {
+#   eval "$(parse_flags_ "stash_" "vl" "$@")"
+#   (( stash_is_d )) && set -x
+
+#   if (( stash_is_h )); then
+#     print "  ${yellow_cor}stash [<name>]${reset_cor} : to stash all files"
+#     print "  ${yellow_cor}stash -v ${solid_yellow_cor}[n]${reset_cor} : to view latest nth stash"
+#     print "  ${yellow_cor}stash -l ${solid_yellow_cor}[n]${reset_cor} : to list stashes, limit by n"
+#     return 0;
+#   fi
+
+#   check_git_; if (( $? != 0 )); then return 1; fi
+
+#   if (( stash_is_v )); then
+#     git stash show -p stash@{${1:-0}}
+#     return $?;
+#   elif (( stash_is_l )); then
+#     git stash list | head -n ${1:-10}
+#     return $?;
+#   fi
+
+#   if (( stash_is_v )); then
+#     git stash show -p stash@{${1:-0}}
+#     return $?;
+#   elif (( stash_is_l )); then
+#     git stash list | head -n ${1:-10}
+#     return $?;
+#   fi
+
+#   if [[ -n "$1" ]]; then
+#     git stash push --include-untracked --message "$1" ${@:2}
+#     RET=$?
+#   fi
+
+#   git stash push --include-untracked --message "$(date +%Y-%m-%d_%H:%M:%S)"
+#   RET=$?
+
+#   return $RET;
+# }
+
+# function pop() {
+#   eval "$(parse_flags_ "pop_" "a" "$@")"
+#   (( pop_is_d )) && set -x
+
+#   if (( pop_is_h )); then
+#     print "  ${yellow_cor}pop${reset_cor} : to pop stash"
+#     print "  ${yellow_cor}pop -a${reset_cor} : to pop all stashes"
+#     return 0;
+#   fi
+
+#   check_git_; if (( $? != 0 )); then return 1; fi
+
+#   if (( pop_is_a )); then
+#     local stashes=()
+#     local stash
+
+#     # Collect stash refs in an array
+#     while IFS= read -r line; do
+#       stash="${line%%:*}"  # strip everything after the first colon
+#       stashes+=("$stash")
+#     done < <(git stash list)
+
+#     # Pop in reverse order (so indices don’t shift)
+#     for (( i=${#stashes[@]}-1; i>=0; i-- )); do
+#       echo "Popping ${stashes[i]}..."
+#       git stash pop --index "${stashes[i]}" || break
+#     done
+#   else
+#     git stash pop --index
+#   fi
+# }
+
 
 # ==========================================================================
 # 1>/dev/null or >/dev/null	  Hide stdout, show stderr
