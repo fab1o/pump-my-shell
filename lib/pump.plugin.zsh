@@ -4803,8 +4803,9 @@ function pushf() {
 
   if (( RET == 0 && ! pushf_is_t && ! ${argv[(Ie)--quiet]} )); then
     print ""
-    git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
-    git log -1 --pretty=format:'%H %s' | pbcopy
+    git log "origin/$my_branch@{1}..origin/$my_branch" --oneline | xargs -0
+    #git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
+    #git log -1 --pretty=format:'%H %s' | pbcopy
   fi
 
   return $RET;
