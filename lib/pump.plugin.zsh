@@ -446,22 +446,36 @@ function upgrade() {
 }
 
 function input_from_() {
-  trap 'echo ""; return 130' INT
+  # very important to 1>/dev/tty so that it is displayed on refresh
+  local header="$1"
+  local placeholder="$2"
 
+  local _input=""
   if command -v gum &>/dev/null; then
-    _input=$(gum input --placeholder="$1" 2>/dev/tty)
+    print "${purple_cor} $header:${reset_cor}" 1>/dev/tty
+
+    _input=$(gum input --placeholder="$placeholder" 2>/dev/tty)
     if (( $? != 0 )); then
-      clear_last_line_
+      # clear_last_line_
       return 1;
     fi
   else
+    if [[ -n "$placeholder" ]]; then
+      echo "$placeholder"
+      return 0;
+    fi
+  
+    print "${purple_cor} $header:${reset_cor}" 1>/dev/tty
+
+    trap 'echo ""; return 130' INT
     stty -echoctl
     read "?> " _input || { echo ""; echo ""; return 1; }
     stty echoctl
-    clear_last_line_
+    # clear_last_line_
   fi
 
   echo "$_input"
+  return 0;
 }
 
 
@@ -524,15 +538,21 @@ function choose_one_() {
 
   if command -v gum &>/dev/null; then
     if (( auto )); then
-      echo "$(gum choose --limit=1 --select-if-one --header="${purple} $header:${reset}" --height="$height" "${@:4}" 2>/dev/tty)"
+      local choice =""
+      choice="$(gum choose --limit=1 --select-if-one --header="${purple} $header:${reset}" --height="$height" "${@:4}" 2>/dev/tty)"
     else
-      echo "$(gum choose --limit=1 --header="${purple} $header:${reset}" --height="$height" "${@:4}" 2>/dev/tty)"
+      choice="$(gum choose --limit=1 --header="${purple} $header:${reset}" --height="$height" "${@:4}" 2>/dev/tty)"
     fi
+    if (( $? != 0 )); then
+      return 1;
+    fi
+
+    echo "$choice"
     return 0;
   fi
   
-  trap 'return 130' INT
-  function TRAPINT() { return 130 }
+  # trap 'return 130' INT
+  # function TRAPINT() { return 130 }
   PS3="${purple}$header: ${reset}"
   select choice in "${@:4}" "quit"; do
     case $choice in
@@ -618,7 +638,7 @@ function del() {
       for file in "${selected_files[@]}"; do
         if (( ! del_is_s )) && [[ ".DS_Store" != "$file" ]]; then
           if [[ -d "$file" && -n "$(ls -A "$file")" ]] || [[ ! -d "$file" ]]; then
-            confirm_from_ "delete "$'\e[94m'$file$'\e[0m'"?"
+            confirm_from_ "delete "$'\e[94m'$file$'\e[0m'" ?"
             RET=$?
             if (( RET == 130 )); then
               return 130;
@@ -659,7 +679,7 @@ function del() {
     for f in $files; do
       if (( ! del_is_s && _count < 3 )) && [[ ".DS_Store" != "$f" ]]; then
         if [[ -d "$f" && -n "$(ls -A "$f")" ]] || [[ ! -d "$f" ]]; then
-          confirm_from_ "delete "$'\e[94m'$f$'\e[0m'"?"
+          confirm_from_ "delete "$'\e[94m'$f$'\e[0m'" ?"
           RET=$?
           if (( RET == 130 )); then
             break;
@@ -678,7 +698,7 @@ function del() {
             pattern="${pattern[$((maxlen + 1)),-1]}"
           done
           split_pattern="${split_pattern%""$'\n\e[0m'""}"
-          confirm_from_ "delete all remaining $split_pattern"$'\e[0m'"?"
+          confirm_from_ "delete all remaining $split_pattern"$'\e[0m'" ?"
           RET=$?
           if (( RET == 130 )); then
             break;
@@ -690,7 +710,7 @@ function del() {
         fi
         if (( is_all == 0 )); then
           if [[ -d "$f" && -n "$(ls -A "$f")" ]] || [[ ! -d "$f" ]]; then
-            confirm_from_ "delete "$'\e[94m'$f$'\e[0m'"?"
+            confirm_from_ "delete "$'\e[94m'$f$'\e[0m'" ?"
             RET=$?
             if (( RET == 130 )); then
               break;
@@ -820,33 +840,49 @@ function update_config_() {
   return $RET;
 }
 
-function input_name_() {
-  # very important to 1>/dev/tty so that it is displayed on refresh
-  print "${purple_cor} $1:${reset_cor}" 1>/dev/tty
+function input_branch_name_() {
+  local header="$1"
 
   while true; do
     local typed_value=""
-    typed_value="$(input_from_ "$2")"
+    typed_value="$(input_from_ "$header")"
     if (( $? != 0 )); then
-      clear_last_line_
+      return 1;
+    fi
+    if git check-ref-format --branch "$typed_value"; then
+      echo "$typed_value"
+      return 0;
+    fi
+  done
+
+  return 1;
+}
+
+function input_name_() {
+  local header="$1"
+  local placeholder="$2"
+
+  while true; do
+    local typed_value=""
+    typed_value="$(input_from_ "$header" "$placeholder")"
+    if (( $? != 0 )); then
       return 1;
     fi
     if [[ -z "$typed_value" ]]; then
-      if command -v gum &>/dev/null; then
-        echo "$2" # echo placeholder only for gum
+      if [[ -n "$placeholder" ]] && command -v gum &>/dev/null; then
+        typed_value="$placeholder"
+      fi
+    fi
+    if [[ -n "$typed_value" ]]; then
+      validate_proj_name_ "$typed_value"
+      if (( $? == 0 )); then
+        echo "$typed_value"
         return 0;
       fi
-      return 1;
-    fi
-
-    local qty=${3:-10}
-    if [[ "$typed_value" =~ ^[a-z0-9][a-z0-9-]*$ && ${#typed_value} -le $qty ]]; then
-      echo "${typed_value:l}"
-      break;
-    else
-      print " invalid name: lowercase, no special characters, $qty max" >&2
     fi
   done
+
+  return 1;
 }
 
 function choose_prj_folder_() {
@@ -938,8 +974,23 @@ function input_path_() {
   done
 }
 
+validate_repo_() {
+  local repo="$1"
+
+  if [[ "$repo" =~ '^((git@[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(\.git)?)|(https://[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(\.git)?))$' ]]; then
+    return 0;
+  fi
+
+  print "  repository must be a valid ssh or https uri" 2>/dev/tty >&2
+  return 1;
+}
+
 function input_repo_() {
-  if command -v gh &>/dev/null; then
+  local header="$1"
+  local placeholder="$2"
+  local skip_folder_lookup="${3:-0}";
+
+  if (( ! skip_folder_lookup )) && command -v gh &>/dev/null; then
     confirm_from_ "do you want to access your Github account to choose from a list of repositories?"
     RET=$?
     if (( RET == 130 )); then
@@ -949,18 +1000,28 @@ function input_repo_() {
     if (( RET == 0 )); then
       local gh_owner=""
       gh_owner=$(input_from_ "type the github owner account (user or organization)")
+      if (( $? != 0 )); then
+        return 1;
+      fi
 
       if [[ -n "$gh_owner" ]]; then
         repos=("${(@f)$(gh repo list $gh_owner --limit 100 --json nameWithOwner -q '.[].nameWithOwner')}")
+        if (( $? != 0 )); then
+          return 1;
+        fi
 
-        if (( $? == 0 && ${#repos[@]} > 0 )); then
-          local selected_repo=$(choose_one_ 0 "choose repository" 30 "${repos[@]}")
-
+        if (( ${#repos[@]} > 0 )); then
+          local selected_repo=""
+          selected_repo=$(choose_one_ 0 "choose repository" 30 "${repos[@]}")
+          if (( $? != 0 )); then
+            return 1;
+          fi
+  
           if [[ -n "$selected_repo" ]]; then
             local mode=""
             mode=$(confirm_between_ "ssh or https?" "ssh" "https" 1)
-            if (( $? == 130 )); then
-              return 130;
+            if (( $? != 0 )); then
+              return 1;
             fi
 
             local repo_uri=""
@@ -970,38 +1031,35 @@ function input_repo_() {
               repo_uri="https://github.com/${selected_repo}.git"
             fi
             echo "$repo_uri"
+  
             return 0;
           fi
         fi
       fi
     fi
   fi
-  
-  print "${purple_cor} type $1:${reset_cor}" >&2
-  # setopt rematch_pcre
 
   while true; do
-    local typed_repo=""
-    typed_repo="$(input_from_ "$2")"
+    local typed_value=""
+    typed_value="$(input_from_ "$header" "$placeholder")"
     if (( $? != 0 )); then
       return 1;
     fi
-    if [[ -z "$typed_repo" ]]; then
-      if command -v gum &>/dev/null; then
-        echo "$2"
+    if [[ -z "$typed_value" ]]; then
+      if [[ -n "$placeholder" ]] && command -v gum &>/dev/null; then
+        typed_value="$placeholder"
+      fi
+    fi
+    if [[ -n "$typed_value" ]]; then
+      validate_repo_ "$typed_value"
+      if (( $? == 0 )); then
+        echo "$typed_value"
         return 0;
       fi
-      return 1;
-    fi
-    #                      '^(git@[^:]+:[^/]+/[^/]+(\.git)?|https://[^/]+/[^/]+/[^/]+(\.git)?)$'
-    if [[ "$typed_repo" =~ '^((git@[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(\.git)?)|(https://[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(\.git)?))$' ]]; then
-       echo "$typed_repo"
-       break;
-    else
-      clear_last_line_
-      print "  repository must be a valid ssh or https uri" >&2
     fi
   done
+
+  return 1;
 }
 
 function pause_output() {
@@ -1336,9 +1394,9 @@ function help() {
   print ""
   print " ${pink_cor} cov <b> ${reset_cor}\t = compare test coverage with another branch"
   print " ${pink_cor} refix ${reset_cor}\t = reset last commit, run fix then re-commit/push"
-  print " ${pink_cor} recommit ${reset_cor}\t = reset last commit then re-commit changes"
-  print " ${pink_cor} repush ${reset_cor}\t = reset last commit then re-push changes"
-  print " ${pink_cor} rev ${reset_cor}\t\t = open a pull request for review"
+  print " ${pink_cor} recommit ${reset_cor}\t = reset last commit then re-commit changes to index"
+  print " ${pink_cor} repush ${reset_cor}\t = reset last commit then re-push changes to index"
+  print " ${pink_cor} rev ${reset_cor}\t\t = open a pull request for review on $Z_CURRENT_CODE_EDITOR"
   print ""
   print "  to learn more, visit:${blue_cor} https://github.com/fab1o/pump-my-shell/wiki ${reset_cor}"
 }
@@ -1378,20 +1436,16 @@ function delete_pump_workings_() {
   done
 }
 
-# data checkers =========================================================
-function check_prj_name_() {
-  eval "$(parse_flags_ "check_prj_name_" "s" "$@")"
-  (( check_prj_name_is_d )) && set -x
-
-  local i="$1"
-  local name="${2:-$Z_PROJECT_SHORT_NAME[$i]}"
-
-  print_debug_ "check_prj_name_ index: $i - name: $name - is_s: $check_prj_name_is_s"
+function validate_proj_name_() {
+  local name="$1"
+  local qty=${2:-12}
 
   local error_msg=""
 
   if [[ -z "$name" ]]; then
     error_msg="project name is missing"
+  elif ! [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ && ${#typed_value} -le $qty ]]; then
+    error_msg="project name is invalid: no special characters, $qty max: $name"
   else
     local invalid_proj_names=(
       "yarn" "npm" "pnpm" "bun" "back" "add" "new" "remove" "rm" "install" "cd" "uninstall" "update" "init" "pushd" "popd" "ls" "dir" "ll"
@@ -1418,10 +1472,25 @@ function check_prj_name_() {
   fi
 
   if [[ -n "$error_msg" ]]; then
-    print " $error_msg" >&2
+    print " $error_msg" 2>/dev/tty >&2
+    return 1;
+  fi
 
-    if (( check_prj_name_is_s )); then
-      save_prj_name_ $i "$name"
+  return 0;
+}
+
+# data checkers =========================================================
+function check_proj_name_() {
+  eval "$(parse_flags_ "check_proj_name_" "s" "$@")"
+  (( check_proj_name_is_d )) && set -x
+
+  local i="$1"
+  local name="$2"
+
+  validate_proj_name_ "$name"
+  if (( $? != 0 )); then
+    if (( check_proj_name_is_s )); then
+      save_proj_name_ $i "$name"
       if (( $? == 0 )); then
         return 0;
       fi
@@ -1438,6 +1507,7 @@ function check_prj_repo_() {
 
   local i="$1"
   local repo="${2:-$Z_PROJECT_REPO[$i]}"
+  local proj_folder="${3:-$Z_PROJECT_FOLDER[$i]}"
 
   local error_msg=""
 
@@ -1476,7 +1546,7 @@ function check_prj_repo_() {
     print "  $error_msg" 2>/dev/tty >&2
 
     if (( check_prj_repo_is_s )); then
-      save_prj_repo_ $i
+      save_proj_repo_ $i "$proj_folder"
 
       if (( $? == 0 )); then
         return 0;
@@ -1495,11 +1565,12 @@ function get_prj_repo_() {
 
   local i="$1"
   local repo="${2:-$Z_PROJECT_REPO[$i]}"
+  local proj_folder="${3:-$Z_PROJECT_FOLDER[$i]}"
 
   if (( get_prj_repo_is_s )); then
-    check_prj_repo_ -s $i "$repo"
+    check_prj_repo_ -s $i "$repo" "$proj_folder"
   else
-    check_prj_repo_ $i "$repo"
+    check_prj_repo_ $i "$repo" "$proj_folder"
   fi
 
   if (( $? == 0 )); then
@@ -1535,10 +1606,10 @@ function check_prj_folder_() {
   if [[ -n "$error_msg" ]]; then
     folder=""
     clear_last_line_
-    print "  $error_msg" >&2
+    print "  $error_msg" 2>/dev/tty >&2
 
     if (( check_prj_folder_is_s )); then
-      save_prj_folder_ $i
+      save_proj_folder_ $i
       if (( $? == 0 )); then
         print_debug_ "check_prj_folder_ Z_PROJECT_FOLDER_$i: $Z_PROJECT_FOLDER[$i]"
         if (( i > 0 )); then
@@ -1607,7 +1678,7 @@ function check_prj_pkg_manager_() {
 
   if [[ -n "$error_msg" ]]; then
     clear_last_line_
-    print " $error_msg" >&2
+    print " $error_msg" 2>/dev/tty >&2
 
     if (( check_prj_pkg_manager_is_s )); then
       save_pkg_manager_ $i "$pkg_manager"
@@ -1635,9 +1706,9 @@ function check_prj_() {
   local name="${Z_PROJECT_SHORT_NAME[$i]}"
 
   if (( check_prj_is_s )); then
-    check_prj_name_ -s $i "$name"
+    check_proj_name_ -s $i "$name"
   else
-    check_prj_name_ $i "$name"
+    check_proj_name_ $i "$name"
   fi
   if (( $? != 0 )); then
     return 1;
@@ -1677,7 +1748,7 @@ function check_prj_() {
   # fi
 
   # now it's time to save the project name
-  save_prj_name_really_ $i
+  save_proj_name_really_ $i
 
   return 0;
 }
@@ -1688,16 +1759,16 @@ clear_last_line_() {
 }
 
 # save project data to config file
-function save_prj_name_really_() {
+function save_proj_name_really_() {
   local i="$1"
   local name="${2:-$Z_PROJECT_SHORT_NAME_TEMP}"
 
   if [[ -z "$name" ]]; then
-    print_debug_ "save_prj_name_really_ name is empty"
+    print_debug_ "save_proj_name_really_ name is empty"
     return 0;
   fi
 
-  print_debug_ "save_prj_name_really_ index: $i - name: $name"
+  print_debug_ "save_proj_name_really_ index: $i - name: $name"
 
   if (( i > 0 )); then
     if [[ -n "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
@@ -1724,22 +1795,24 @@ function save_prj_name_really_() {
   Z_PROJECT_SHORT_NAME_TEMP=""
 }
 
-function save_prj_name_() {
-  eval "$(parse_flags_ "save_prj_name_" "ae" "$@")"
-  (( save_prj_name_is_d )) && set -x
+function save_proj_name_() {
+  eval "$(parse_flags_ "save_proj_name_" "ae" "$@")"
+  (( save_proj_name_is_d )) && set -x
 
   local i="$1"
   local name="${2:-$Z_PROJECT_SHORT_NAME[$i]}"
 
   local typed_name=""
+  typed_name=$(input_name_ "type your project short name" "$name")
 
-  typed_name=$(input_name_ "type your project short name" "$name" 10)
-  clear_last_line_
-
-  print_debug_ "save_prj_name_ index: $i - name: $name - typed_name: "$typed_name" - is_a: $save_prj_name_is_a - is_e: $save_prj_name_is_e"
+  if [[ -z "$typed_name" ]]; then
+    return 1;
+  fi
   
+  print_debug_ "save_proj_name_ index: $i - name: $name - typed_name: "$typed_name" - is_a: $save_proj_name_is_a - is_e: $save_proj_name_is_e"
+
   if [[ -n "$typed_name" ]]; then
-    check_prj_name_ $i "$typed_name"
+    check_proj_name_ $i "$typed_name"
     if (( $? == 0 )); then
       # save the project name after all other answers
       Z_PROJECT_SHORT_NAME_TEMP="$typed_name"
@@ -1793,9 +1866,9 @@ function save_prj_mode_() {
   return 0;
 }
 
-function save_prj_folder_() {
-  eval "$(parse_flags_ "save_prj_folder_" "arse" "$@")"
-  (( save_prj_folder_is_d )) && set -x
+function save_proj_folder_() {
+  eval "$(parse_flags_ "save_proj_folder_" "arse" "$@")"
+  (( save_proj_folder_is_d )) && set -x
 
   local i="$1"
   local folder="${2:-$Z_PROJECT_FOLDER[$i]}"
@@ -1803,14 +1876,14 @@ function save_prj_folder_() {
   local repo="$Z_PROJECT_REPO[$i]"
   local single_mode=$Z_PROJECT_SINGLE_MODE[$i]
 
-  print_debug_ "save_prj_folder_ index: $i - folder: "$folder" - is_s: $save_prj_folder_is_s - is_r: $save_prj_folder_is_r"
+  print_debug_ "save_proj_folder_ index: $i - folder: "$folder" - is_s: $save_proj_folder_is_s - is_r: $save_proj_folder_is_r"
 
   local chose_folder=""
   local handle_folder_processing=0
 
   if [[ -n "$folder" ]]; then
-    if (( ! save_prj_folder_is_r && ! save_prj_folder_is_s )); then
-      confirm_from_ "use exiting project folder: "$'\e[94m'${folder}$'\e[0m'"?"
+    if (( ! save_proj_folder_is_r && ! save_proj_folder_is_s )); then
+      confirm_from_ "use exiting project folder: "$'\e[94m'${folder}$'\e[0m'" ?"
       RET=$?
       if (( RET == 130 )); then
         return 130;
@@ -1819,23 +1892,29 @@ function save_prj_folder_() {
         # if multiple mode, we need to process the folder
         if (( ! single_mode )); then
           if [[ -d "$folder" && -n "$(ls -A "$folder" 2>/dev/null)" ]]; then
-            mv -f "$folder" "${folder}_$(date +"%Y%m%d%H%M%S")" &>/dev/null
+            local parent_folder="$(dirname "$folder")"
+            local folder_name="$(basename "$folder")"
+
+            mv -f "$folder" "${parent_folder}/${folder_name}_$(date +"%Y%m%d%H%M%S")" &>/dev/null
             mkdir -p "$folder" &>/dev/null
           fi
-          single_mode=1 # prevent processing again
+          single_mode=0 # prevent processing again
+          handle_folder_processing=0
         fi
         chose_folder="$folder"
       fi
-    elif (( save_prj_folder_is_s )); then
-      single_mode=1 # prevent processing again
+    elif (( save_proj_folder_is_s )); then
+      # single_mode=1 # prevent processing again
       chose_folder="$folder"
     fi
   fi
 
   local header=""
-  if (( single_mode )) && (( save_prj_folder_is_r || save_prj_folder_is_s )); then
+  if (( single_mode && save_proj_folder_is_s )); then
+    header="select the folder where to clone the project"
+  elif (( single_mode && save_proj_folder_is_r )); then
     header="select the folder where your project was cloned"
-  else
+  elif (( ! save_proj_folder_is_e )); then
     handle_folder_processing=1
     header="choose a parent folder in which to git clone from (project will be a subfolder)"
   fi
@@ -1845,8 +1924,8 @@ function save_prj_folder_() {
     #clear_last_line_
   fi
 
-  print_debug_ "save_prj_folder_ chose_folder: $chose_folder"
-  print_debug_ "save_prj_folder_ handle_folder_processing: $handle_folder_processing - single_mode: $single_mode"
+  print_debug_ "save_proj_folder_ chose_folder: $chose_folder"
+  print_debug_ "save_proj_folder_ handle_folder_processing: $handle_folder_processing - single_mode: $single_mode"
 
   if [[ -n "$chose_folder" ]]; then
     local proj_folder="$chose_folder"
@@ -1857,8 +1936,11 @@ function save_prj_folder_() {
       proj_folder="${chose_folder}/${proj_folder}"
     fi
 
+    print_debug_ "save_proj_folder_ before check_prj_folder_: $proj_folder"
+
     check_prj_folder_ $i "$proj_folder"
     if (( $? == 0 )); then
+      print_debug_ "save_proj_folder_ after check_prj_folder_: $proj_folder"
       if (( handle_folder_processing )); then
         if [[ -d "$proj_folder" && -n "$(ls -A "$proj_folder" 2>/dev/null)" ]]; then
           mv -f "$proj_folder" "${proj_folder}_$(date +"%Y%m%d%H%M%S")" &>/dev/null
@@ -1873,7 +1955,7 @@ function save_prj_folder_() {
         Z_CURRENT_PROJECT_FOLDER="$proj_folder"
       fi
 
-      if (( ! save_prj_folder_is_s )); then
+      if (( ! save_proj_folder_is_s || save_proj_folder_is_e )); then
         if (( handle_folder_processing )); then
           print "  parent folder: $chose_folder" >&1
           print "  project folder: $proj_folder" >&1
@@ -1888,20 +1970,21 @@ function save_prj_folder_() {
   return 1;
 }
 
-function save_prj_repo_() {
-  eval "$(parse_flags_ "save_prj_repo_" "ae" "$@")"
-  (( save_prj_repo_is_d )) && set -x
+function save_proj_repo_() {
+  eval "$(parse_flags_ "save_proj_repo_" "ae" "$@")"
+  (( save_proj_repo_is_d )) && set -x
 
   local i="$1"
-  local repo="${2:-$Z_PROJECT_REPO[$i]}"
-  local single_mode="${3:-$Z_PROJECT_SINGLE_MODE[$i]}"
+  local proj_folder="$2"
+  local repo="${3:-$Z_PROJECT_REPO[$i]}"
+  local single_mode="${4:-$Z_PROJECT_SINGLE_MODE[$i]}"
 
-  print_debug_ "save_prj_repo_ index: $i - repo: $repo - is_a: $save_prj_repo_is_a - is_e: $save_prj_repo_is_e"
+  print_debug_ "save_proj_repo_ index: $i - repo: $repo - is_a: $save_proj_repo_is_a - is_e: $save_proj_repo_is_e"
 
   local typed_repo=""
 
   if [[ -n "$repo" ]]; then
-    confirm_from_ "use repository uri: "$'\e[94m'${repo}$'\e[0m'"?"
+    confirm_from_ "use repository uri: "$'\e[94m'${repo}$'\e[0m'" ?"
     RET=$?
     if (( RET == 130 )); then
       return 130;
@@ -1911,7 +1994,9 @@ function save_prj_repo_() {
     fi
   fi
 
-  if [[ -z "$typed_repo" ]] && (( single_mode )); then
+  [[ -n "$proj_folder" ]] && (( single_mode )) && skip_folder_lookup=1 || skip_folder_lookup=0;
+
+  if [[ -z "$typed_repo" ]] && (( ! skip_folder_lookup && single_mode )); then
     confirm_from_ "have you already cloned the project?"
     RET=$?
     if (( RET == 130 )); then
@@ -1919,7 +2004,7 @@ function save_prj_repo_() {
     fi
     if (( RET == 0 )); then # yes
       while true; do
-        save_prj_folder_ -r $i
+        save_proj_folder_ -r $i
         if (( $? != 0 )); then return 1; fi
         local folder=""
         if (( i > 0 )); then
@@ -1937,13 +2022,12 @@ function save_prj_repo_() {
   fi
 
   if [[ -z "$typed_repo" ]]; then
-    typed_repo=$(input_repo_ "the repository uri (ssh or https)" "$repo")
+    typed_repo=$(input_repo_ "type the repository uri (ssh or https)" "$repo" $skip_folder_lookup)
     clear_last_line_
   fi
   
   if [[ -n "$typed_repo" ]]; then
-
-    check_prj_repo_ $i "$typed_repo"
+    check_prj_repo_ $i "$typed_repo" "$proj_folder"
     if (( $? == 0 )); then
 
       if (( i > 0 )); then
@@ -2073,7 +2157,7 @@ function save_prj_() {
     pkg_manager=$(detect_pkg_manager_)
   fi
 
-  save_prj_name_ $i "$2"
+  save_proj_name_ $i "$2"
   if (( $? != 0 )); then
     return 1;
   fi
@@ -2083,14 +2167,20 @@ function save_prj_() {
     return 1;
   fi
 
-  save_prj_repo_ $i "$repo"
+  save_proj_repo_ $i "$proj_folder" "$repo" "$single_mode"
   if (( $? != 0 )); then
     return 1;
   fi
 
-  save_prj_folder_ -s $i "$proj_folder"
-  if (( $? != 0 )); then
-    return 1;
+  if (( ! save_prj_is_f )); then
+    if (( save_prj_is_e )); then
+      save_proj_folder_ -e $i "$proj_folder"
+    else
+      save_proj_folder_ -sa $i "$proj_folder"
+    fi 
+    if (( $? != 0 )); then
+      return 1;
+    fi
   fi
 
   save_pkg_manager_ $i "$pkg_manager"
@@ -2099,7 +2189,7 @@ function save_prj_() {
   fi
 
   # now it's time to save the project name
-  save_prj_name_really_ $i
+  save_proj_name_really_ $i
 
   help_line_ "" "${solid_magenta_cor}"
   print "  project saved!" >&1
@@ -2671,7 +2761,7 @@ function pro() {
       check_pkg_silent_;
       if (( $? == 0 )); then
         # ask if wants to add a new project but only if the folder is a project
-        if confirm_from_ "add this project to pump-my-shell?"; then
+        if confirm_from_ "add this project to "$'\e[38;5;201m'pump-my-shell$'\e[0m'" ?"; then
           pro -af "$(basename $(pwd))"
           return $?;
         fi
@@ -2802,7 +2892,7 @@ function refix() {
     return 0;
   fi
 
-  pushf $@
+  pushf -s $@
 }
 
 function covc() {
@@ -3298,7 +3388,7 @@ function pr() {
   fi
 
   if [[ -z "$Z_CURRENT_PR_RUN_TEST" ]]; then
-    if confirm_from_ "run tests before a pull request?"; then
+    if confirm_from_ "run tests before pull request?"; then
       test
       if (( $? != 0 )); then
         print "${solid_red_cor} tests are not passing,${reset_cor} did not push" >&2
@@ -3320,9 +3410,8 @@ function pr() {
   elif (( $Z_CURRENT_PR_RUN_TEST || pr_is_t )); then
     local git_status=$(git status --porcelain 2>/dev/null)
     if [[ -n "$git_status" ]]; then
-      if ! confirm_from_ "skip test?"; then
-        return 0;
-      fi
+      print " branch is not clean, cannot create pull request" >&2;
+      return 1;
     else
       test
       if (( $? != 0 )); then
@@ -3842,10 +3931,9 @@ function rev() {
   
   local git_status=$(git status --porcelain 2>/dev/null)
   if [[ -n "$git_status" ]]; then
-    if ! confirm_from_ "branch is not clean, reset?"; then
-      return 0;
+    if ! confirm_from_ "branch is not clean, discard all changes and pull?"; then
+      return 1;
     fi
-    print " resetting via reseta..."
     reseta
   fi
   
@@ -4127,7 +4215,7 @@ function clone() {
     fi
 
     if [[ -z "$branch_arg" ]]; then
-      branch_arg=$(input_name_ "type the branch name" "" 40);
+      branch_arg=$(input_branch_name_ "type the branch name");
     fi
 
     if [[ -z "$branch_arg" ]]; then
@@ -4144,7 +4232,7 @@ function clone() {
       return 0;
     fi
 
-    if confirm_from_ "save '$default_branch' as the default branch for $proj_arg and don't ask again?"; then
+    if confirm_from_ "save "$'\e[94m'$default_branch$'\e[0m'" as the default branch for $proj_arg and don't ask again?"; then
       if [[ "$proj_arg" == "${Z_PROJECT_SHORT_NAME[$found]}" ]]; then
         update_config_ $found "Z_DEFAULT_BRANCH" "$default_branch"
         Z_DEFAULT_BRANCH[$found]="$default_branch"
@@ -4455,7 +4543,7 @@ function repush() {
   
   if (( $? != 0 )); then return 1; fi
   
-  pushf -l $@
+  pushf -s $@
 }
 
 function recommit() {
@@ -4497,7 +4585,7 @@ function recommit() {
     if (( $? != 0 )); then return 1; fi
 
     if [[ -z "$Z_CURRENT_COMMIT_ADD" ]]; then
-      if confirm_from_ "add all changes to commit: '$last_commit_msg'?"; then
+      if confirm_from_ "add all changes to commit: "$'\e[94m'$last_commit_msg$'\e[0m'" ?"; then
         git add .
 
         if confirm_from_ "save this preference and don't ask again?"; then
@@ -4549,7 +4637,7 @@ function commit() {
   else
     msg_arg="$1"
     if [[ -z "$Z_CURRENT_COMMIT_ADD" ]]; then
-      if confirm_from_ "do you want to commit all changes?"; then
+      if confirm_from_ "commit all changes?"; then
         git add .
 
         if confirm_from_ "save this preference and don't ask again?"; then
@@ -4714,24 +4802,19 @@ function glog() {
 }
 
 function push() {
-  eval "$(parse_flags_ "push_" "flt" "$@")"
+  eval "$(parse_flags_ "push_" "ft" "$@")"
   (( push_is_d )) && set -x
 
   if (( push_is_h )); then
     print "  ${yellow_cor}push${reset_cor} : to push with no-verify"
-    print "  ${yellow_cor}push -fl${reset_cor} : force with lease"
-    print "  ${yellow_cor}push -t${reset_cor} : push tags"
-    print "  ${yellow_cor}push -f${reset_cor} : force"
+    print "  ${yellow_cor}push -f${reset_cor} : to force push with lease no-verify"
+    print "  ${yellow_cor}push -t${reset_cor} : to push tags"
     return 0;
   fi
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
   fetch --quiet
-
-  local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
-
-  (( quiet = push_is_t || ${argv[(Ie)--quiet]} ))
 
   if (( push_is_t && push_is_f )); then
     git push --no-verify --tags --force $@
@@ -4742,70 +4825,86 @@ function push() {
     git push --no-verify --tags $@
     return $?;
   fi
-
-  if (( push_is_f && push_is_l )); then
-    pushf -l $@
-    return $?;
-  fi
   
   if (( push_is_f )); then
     pushf $@
     return $?;
   fi
 
-  RET=0;
+  local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+
+  if [[ -z "$my_branch" ]]; then
+    print " branch is detached, cannot push" >&2
+    return 1;
+  fi
 
   git push --no-verify --set-upstream origin "$my_branch" $@
   RET=$?
 
   if (( RET != 0 && quiet == 0 )); then
-    if confirm_from_ "try push force with lease?"; then
-      pushf -l $@
+    if confirm_from_ "failed, try push force with lease?"; then
+      pushf $@
       return $?;
     fi
   fi
 
-  if (( RET == 0 && quiet == 0 )); then
-    print ""
-    git log "origin/$my_branch@{1}..origin/$my_branch" --format='%H %s' | xargs -0
-    #git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
-    #git log -1 --pretty=format:'%H %s' | pbcopy
+  if (( RET == 0 && ! ${argv[(Ie)--quiet]} )); then
+    if [[ -n "$my_branch" ]]; then
+      print ""
+      git log "origin/$my_branch@{1}..origin/$my_branch" --format='%H %s' | xargs -0
+      #git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
+      #git log -1 --pretty=format:'%H %s' | pbcopy
+    fi
   fi
 
   return $RET;
 }
 
 function pushf() {
-  eval "$(parse_flags_ "pushf_" "lt" "$@")"
+  eval "$(parse_flags_ "pushf_" "fts" "$@")"
   (( pushf_is_d )) && set -x
 
   if (( pushf_is_h )); then
-    print "  ${yellow_cor}pushf${reset_cor} : to force push no-verify"
-    print "  ${yellow_cor}pushf -l${reset_cor} : to force with lease"
-    print "  ${yellow_cor}pushf -t${reset_cor} : to force push tags"
+    print "  ${yellow_cor}pushf${reset_cor} : to force push with lease no-verify"
+    print "  ${yellow_cor}pushf -f${reset_cor} : to regular push with force"
+    print "  ${yellow_cor}pushf -t${reset_cor} : to push tags"
     return 0;
   fi
 
   check_git_; if (( $? != 0 )); then return 1; fi
 
-  local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
-
-  if (( pushf_is_l )); then
-    git push --no-verify --force-with-lease origin "$my_branch" $@
-    RET=$?
-  elif (( pushf_is_t )); then
+  if (( pushf_is_t && pushf_is_f )); then
     git push --no-verify --tags --force $@
-    RET=$?
-  else
-    git push --no-verify --force origin "$my_branch" $@
     RET=$?
   fi
 
-  if (( RET == 0 && ! pushf_is_t && ! ${argv[(Ie)--quiet]} )); then
-    print ""
-    git log "origin/$my_branch@{1}..origin/$my_branch" --format='%H %s' | xargs -0
-    #git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
-    #git log -1 --pretty=format:'%H %s' | pbcopy
+  if (( pushf_is_t )); then
+    git push --no-verify --tags $@
+    RET=$?
+  fi
+
+  local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+
+  if [[ -z "$my_branch" ]]; then
+    print " branch is detached, cannot push force" >&2
+    return 1;
+  fi
+
+  if (( pushf_is_f )); then
+    git push --no-verify --force origin "$my_branch" $@
+    RET=$?
+  else
+    git push --no-verify --force-with-lease origin "$my_branch" $@
+    RET=$?
+  fi
+
+  if (( RET == 0 && ! ${argv[(Ie)--quiet]} )); then
+    if [[ -n "$my_branch" ]]; then
+      print ""
+      git log "origin/$my_branch@{1}..origin/$my_branch" --format='%H %s' | xargs -0
+      #git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
+      #git log -1 --pretty=format:'%H %s' | pbcopy
+    fi
   fi
 
   return $RET;
@@ -6307,7 +6406,7 @@ function activate_pro_() {
         local i=0
         for i in {1..9}; do
           if [[ "$pump_pro_file_value" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-            check_prj_name_ $i "$pump_pro_file_value" >/dev/null
+            check_proj_name_ $i "$pump_pro_file_value" &>/dev/null
             if (( $? != 0 )); then
               rm -f "$PUMP_PRO_FILE" &>/dev/null
               pump_pro_file_value=""
