@@ -455,19 +455,21 @@ function choose_multiple_() {
   local reset=$'\e[0m'
 
   local auto=$1
+  local header="$2"
+  local height="${3:-20}"
 
   if command -v gum &>/dev/null; then
     if (( auto )); then
-      echo "$(gum choose --select-if-one --no-limit --height 20 --header="${purple} $2 ${cor}(use spacebar)${purple}:${reset}" "${@:3}")"
+      echo "$(gum choose --select-if-one --no-limit --header="${purple} $header ${cor}(use spacebar)${purple}:${reset}" --height="$height" "${@:4}")"
     else
-      echo "$(gum choose --no-limit --height 20 --header="${purple} $2 ${cor}(use spacebar)${purple}:${reset}" "${@:3}")"
+      echo "$(gum choose --no-limit --header="${purple} $header ${cor}(use spacebar)${purple}:${reset}" --height="$height" "${@:4}")"
     fi
     return 0;
   fi
 
   trap 'echo ""; return 130' INT
-  PS3="${purple}$2: ${reset}"
-  select choice in "${@:3}" "quit"; do
+  PS3="${purple}$header: ${reset}"
+  select choice in "${@:4}" "quit"; do
     case $choice in
       "quit")
         return 1;
@@ -497,6 +499,7 @@ function filter_one_() { # gum filter does not have
 
 function choose_one_() {
   local auto="$1"
+  local header="$2"
   local height="${3:-20}"
 
   local purple=$'\e[38;5;99m'
@@ -504,14 +507,14 @@ function choose_one_() {
 
   if command -v gum &>/dev/null; then
     if (( auto )); then
-      echo "$(gum choose --limit=1 --select-if-one --header="${purple} $2:${reset}" --height="$height" "${@:4}")"
+      echo "$(gum choose --limit=1 --select-if-one --header="${purple} $header:${reset}" --height="$height" "${@:4}")"
     else
-      echo "$(gum choose --limit=1 --header="${purple} $2:${reset}" --height="$height" "${@:4}")"
+      echo "$(gum choose --limit=1 --header="${purple} $header:${reset}" --height="$height" "${@:4}")"
     fi
     return 0;
   fi
   
-  PS3="${purple}$2: ${reset}"
+  PS3="${purple}$header: ${reset}"
   select choice in "${@:4}" "quit"; do
     case $choice in
       "quit")
@@ -586,7 +589,7 @@ function del() {
       files=(*)
     fi
     if (( ${#files[@]} )); then
-      local selected_files=("${(@f)$(choose_multiple_ 1 "choose what to delete" "${files[@]}")}")
+      local selected_files=("${(@f)$(choose_multiple_ 1 "choose what to delete" 20 "${files[@]}")}")
       if [[ -z "$selected_files" ]]; then
         return 1;
       fi
@@ -3194,7 +3197,7 @@ function pr() {
   if [[ -n "$Z_CURRENT_PROJECT_REPO" ]]; then
     if [[ -z "$Z_CURRENT_LABEL_PR" || "$Z_CURRENT_LABEL_PR" -eq 0 ]]; then
       local labels=("none" "${(@f)$(gh label list --repo "$Z_CURRENT_PROJECT_REPO" --limit 25 | awk '{print $1}')}")
-      local choose_labels=$(choose_multiple_ 0 "choose labels" "${labels[@]}")
+      local choose_labels=$(choose_multiple_ 0 "choose labels" 20 "${labels[@]}")
       if [[ -z "$choose_labels" ]]; then
         return 1;
       fi
@@ -4653,12 +4656,7 @@ function dtag() {
   (( dtag_is_d )) && set -x
 
   if (( dtag_is_h )); then
-    print "  ${yellow_cor}dtag <name>${reset_cor} : to delete a tag"
-    return 0;
-  fi
-
-  if [[ -z "$1" ]]; then
-    dtag -h
+    print "  ${yellow_cor}dtag ${solid_yellow_cor}[<name>]${reset_cor} : to delete a tag"
     return 0;
   fi
 
@@ -4669,8 +4667,30 @@ function dtag() {
   
   fetch --quiet
 
-  git tag -d "$1" ${@:2}
+  if [[ -z "$1" ]]; then
+    # list all tags suing tags command then use choose_multiple_ to select tags, then delete all selected tags
+    local tags=$(tags 2>/dev/null)
+    if [[ -z "$tags" ]]; then
+      print " no tags found" >&2
+      cd "$_pwd"
+      return 0;
+    fi
+    local selected_tags=($(choose_multiple_ 0 "select tags to delete" 20 $(echo "$tags" | tr '\n' ' ')))
+    if [[ -z "$selected_tags" ]]; then
+      cd "$_pwd"
+      return 1;
+    fi
+    for tag in $selected_tags; do
+      print_debug_ "deleting tag: $tag"
+      git tag -d "$tag" ${@:2} 
+      git push origin --delete "$tag" ${@:2}
+      RET=$?
+    done
+    cd "$_pwd"
+    return $RET;
+  fi
 
+  git tag -d "$1" ${@:2}
   if (( $? != 0 )); then
     cd "$_pwd"
     return 1;
@@ -4771,28 +4791,28 @@ function tags() {
   open_prj_for_git_
   if (( $? != 0 )); then return 1; fi
 
-  prune >/dev/null
+  prune &>/dev/null
 
-  local tag=""
+  local tags=""
 
   if [[ -z "$1" ]]; then
-    tag=$(git for-each-ref refs/tags --sort=-taggerdate --format='%(refname:short)')
+    tags=$(git for-each-ref refs/tags --sort=-taggerdate --format='%(refname:short)')
 
-    if [[ -z "$tag" ]]; then
-      tag=$(git for-each-ref refs/tags --sort=-committerdate --format='%(refname:short)')
+    if [[ -z "$tags" ]]; then
+      tags=$(git for-each-ref refs/tags --sort=-creatordate --format='%(refname:short)')
     fi
   else
-    tag=$(git for-each-ref refs/tags --sort=-taggerdate --format='%(refname:short)' --count="${1//[^0-9]/}")
+    tags=$(git for-each-ref refs/tags --sort=-taggerdate --format='%(refname:short)' --count="${1//[^0-9]/}")
 
-    if [[ -z "$tag" ]]; then
-      tag=$(git for-each-ref refs/tags --sort=-committerdate --format='%(refname:short)' --count="${1//[^0-9]/}")
+    if [[ -z "$tags" ]]; then
+      tags=$(git for-each-ref refs/tags --sort=-creatordate --format='%(refname:short)' --count="${1//[^0-9]/}")
     fi
   fi
 
-  if [[ -z "$tag" ]]; then
-    print " no tags found"
+  if [[ -z "$tags" ]]; then
+    print " no tags found" >&2
   else
-    print "$tag"
+    print "$tags"
   fi
 
   cd "$_pwd"
@@ -5105,7 +5125,7 @@ function select_branch_() {
   local select_branch_choice=""
 
   if (( multiple )); then
-    select_branch_choice=$(choose_multiple_ 0 "choose branches" $(echo "$branch_choices" | tr ' ' '\n'))
+    select_branch_choice=$(choose_multiple_ 0 "choose branches" 20 $(echo "$branch_choices" | tr ' ' '\n'))
   else
     local branch_choices_count=$(echo "$branch_choices" | wc -l)
     print_debug_ "select_branch_ : branch_choices_count=$branch_choices_count"
