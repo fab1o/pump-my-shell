@@ -396,11 +396,11 @@ function update_() {
     print " if you encounter an error after installation, don't worry — simply restart your terminal"
 
     if command -v gum &>/dev/null; then
-      gum spin --title "updating pump-my-shell..." -- \
+      gum spin --title "updating pump-my-shell..." -- sleep 1 &&  \
         /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
     else
       print " updating pump-my-shell..."
-      /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"  
+      sleep 1 && /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"  
     fi
     return 0;
   else
