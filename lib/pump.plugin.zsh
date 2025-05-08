@@ -538,7 +538,7 @@ function choose_one_() {
 
   if command -v gum &>/dev/null; then
     if (( auto )); then
-      local choice =""
+      local choice=""
       choice="$(gum choose --limit=1 --select-if-one --header="${purple} $header:${reset}" --height="$height" "${@:4}" 2>/dev/tty)"
     else
       choice="$(gum choose --limit=1 --header="${purple} $header:${reset}" --height="$height" "${@:4}" 2>/dev/tty)"
