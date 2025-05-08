@@ -1368,9 +1368,10 @@ function help() {
   # print " ${solid_cyan_cor} stash ${reset_cor}\t = stash all files"
 
   print ""
-  help_line_ "git tags" "${solid_cyan_cor}"
+  help_line_ "git release" "${solid_cyan_cor}"
   print ""
   print " ${solid_cyan_cor} dtag ${reset_cor}\t\t = delete tag remotely"
+  print " ${solid_cyan_cor} release ${reset_cor}\t\t = create a release"
   print " ${solid_cyan_cor} tag ${reset_cor}\t\t = create tag remotely"
   print " ${solid_cyan_cor} tags ${reset_cor}\t\t = list latest tags"
   print " ${solid_cyan_cor} tags 1 ${reset_cor}\t = display latest tag"
@@ -1448,6 +1449,7 @@ function validate_proj_name_() {
     error_msg="project name is invalid: no special characters, $qty max: $name"
   else
     local invalid_proj_names=(
+      "main" "master" "stage" "staging" "prod" "release"
       "yarn" "npm" "pnpm" "bun" "back" "add" "new" "remove" "rm" "install" "cd" "uninstall" "update" "init" "pushd" "popd" "ls" "dir" "ll"
       "pro" "rev" "revs" "clone" "setup" "run" "test" "testw" "covc" "cov" "e2e" "e2eui" "recommit" "refix" "clear"
       "rdev" "dev" "stage" "prod" "gha" "pr" "push" "repush" "pushf" "add" "commit" "build" "i" "ig" "deploy" "fix" "format" "lint"
@@ -5019,6 +5021,44 @@ function pull() {
   return $RET;
 }
 
+function release() {
+  eval "$(parse_flags_ "release_" "" "$@")"
+  (( release_is_d )) && set -x
+
+  if (( release_is_is_h )); then
+    print "  ${yellow_cor}release ${solid_yellow_cor}[<tag>]${reset_cor} : to create a new release"
+    return 0;
+  fi
+
+  if ! command -v gh &>/dev/null; then
+    print " release requires gh" >&2
+    print " install gh:${blue_cor} https://github.com/cli/cli ${reset_cor}" >&2
+    return 1;
+  fi
+
+  check_git_; if (( $? != 0 )); then return 1; fi
+
+  local tag="$1"
+
+  if [[ -z "$tag" ]]; then
+    tag="$(tags 1)"
+    if [[ -z "$tag" ]]; then
+      cd "$_pwd"
+      return 1;
+    fi
+  fi
+
+  tag "$tag"
+  if (( $? != 0 )); then
+    cd "$_pwd"
+    return 1;
+  fi
+
+  push -t
+
+  gh release create "$tag" --title "$tag" ${@:2}
+}
+
 function tag() {
   eval "$(parse_flags_ "tag_" "" "$@")"
   (( tag_is_d )) && set -x
@@ -5101,10 +5141,11 @@ function tags() {
 
   if [[ -z "$tags" ]]; then
     print " no tags found" >&2
-  else
-    print "$tags"
+    cd "$_pwd"
+    return 1;
   fi
-
+  
+  print "$tags"
   cd "$_pwd"
 }
 
