@@ -4320,6 +4320,8 @@ function repush() {
     return 0;
   fi
 
+  check_git_; if (( $? != 0 )); then return 1; fi
+
   if (( repush_is_s )); then
     recommit -s $@
   else
@@ -4501,13 +4503,14 @@ function commit() {
 }
 
 function fetch() {
-  eval "$(parse_flags_ "fetch_" "at" "$@")"
+  eval "$(parse_flags_ "fetch_" "ato" "$@")"
   (( fetch_is_d )) && set -x
 
   if (( fetch_is_h )); then
     print "  ${yellow_cor}fetch${reset_cor} : to fetch all branches and reachable tags"
     print "  ${yellow_cor}fetch <branch>${reset_cor} : to fetch a branch"
-    print "  ${yellow_cor}fetch -t${reset_cor} : to fetch all tags in combination with branches"
+    print "  ${yellow_cor}fetch -t${reset_cor} : to fetch all tags along with branches"
+    print "  ${yellow_cor}fetch -to${reset_cor} : to fetch all tags only"
     print "  ${yellow_cor}fetch -a${reset_cor} : to fetch all remotes"
     return 0;
   fi
@@ -4516,6 +4519,14 @@ function fetch() {
 
   RET=0;
 
+  if (( fetch_is_t )); then 
+    git fetch --all --tags --prune-tags --force
+    RET=$?
+    if (( pull_is_o )); then
+      return $RET;
+    fi
+  fi
+
   if [[ $1 != --* ]]; then
     git fetch --prune origin "$1" ${@:2}
     RET=$?
@@ -4523,11 +4534,6 @@ function fetch() {
     git fetch --all --prune $@
     RET=$?
   else
-    RET=$?
-  fi
-
-  if (( RET == 0 && fetch_is_t )); then 
-    git fetch --all --tags --prune-tags --force
     RET=$?
   fi
 
@@ -4736,26 +4742,40 @@ function print_debug_() {
 }
 
 function pull() {
-  eval "$(parse_flags_ "pull_" "t" "$@")"
+  eval "$(parse_flags_ "pull_" "to" "$@")"
   (( pull_is_d )) && set -x
 
   if (( pull_is_h )); then
-    print "  ${yellow_cor} pull${reset_cor} : to pull from origin branch"
-    print "  ${yellow_cor} pull -t${reset_cor} : to pull tags"
+    print "  ${yellow_cor} pull ${solid_yellow_cor}[<branch>]${reset_cor} : to pull from origin branch"
+    print "  ${yellow_cor} pull -t${reset_cor} : to pull all tags along with branches"
+    print "  ${yellow_cor} pull -to${reset_cor} : to pull all tags only"
     return 0;
   fi
 
-  local branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+  check_git_; if (( $? != 0 )); then return 1; fi
 
   (( quiet = pull_is_t || ${argv[(Ie)--quiet]} ))
 
   print_debug_ "pull branch: $branch - quiet: $quiet"
 
+  # local branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+  local branch="$1"
+
+  local RET=0;
+
   if (( pull_is_t )); then
     git pull origin --tags $@
     RET=$?
-  else
+    if (( pull_is_o )); then
+      return $RET;
+    fi
+  fi
+
+  if [[ -z "$branch" ]]; then
     git pull origin "$branch" --rebase --autostash $@
+    RET=$?
+  else
+    git pull origin --rebase --autostash $@
     RET=$?
   fi
 
