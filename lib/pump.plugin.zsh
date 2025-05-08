@@ -2702,7 +2702,7 @@ function covc() {
   local my_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
 
   if [[ "$branch" == "$my_branch" ]]; then
-    print " trying to compare with the same branch"; >&2
+    print " trying to compare with the same branch" >&2
     return 1;
   fi
 
