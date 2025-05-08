@@ -2636,8 +2636,8 @@ function refix() {
       local i=0
       for i in {1..9}; do
         if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-          update_config_ $i "Z_PUSH_ON_REFIX" 1
           Z_CURRENT_PUSH_ON_REFIX=1
+          update_config_ $i "Z_PUSH_ON_REFIX" 1
           break
         fi
       done
@@ -3054,7 +3054,7 @@ function pr() {
   # OPTIONS="--abbrev-commit HEAD"
 
    git log $(git merge-base HEAD $(git config --get init.defaultBranch))..HEAD --no-merges --oneline --pretty=format:'%H | %s' | xargs -0 | while IFS= read -r line; do
-    local commit_hash=$(echo "$line" | cut -d'|' -f1 | xargs)
+    local commit_hash=$(echo "$line" | cut -d'|' -f1 | xargs -0)
     local commit_message=$(echo "$line" | cut -d'|' -f2- | xargs -0)
 
     # # Check if the commit belongs to the current branch
@@ -4180,6 +4180,7 @@ function reset1() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   git log -1 --pretty=format:'%s' | xargs -0
+  git log -1 --pretty=format:'%s' | pbcopy
   
   git reset --quiet --soft HEAD~1
 }
@@ -4196,6 +4197,7 @@ function reset2() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   git log -2 --pretty=format:'%s' | xargs -0
+  git log -1 --pretty=format:'%s' | pbcopy
   
   git reset --quiet --soft HEAD~2
 }
@@ -4212,6 +4214,7 @@ function reset3() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   git log -3 --pretty=format:'%s' | xargs -0
+  git log -1 --pretty=format:'%s' | pbcopy
   
   git reset --quiet --soft HEAD~3
 }
@@ -4228,6 +4231,7 @@ function reset4() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   git log -4 --pretty=format:'%s' | xargs -0
+  git log -1 --pretty=format:'%s' | pbcopy
   
   git reset --quiet --soft HEAD~4
 }
@@ -4244,6 +4248,7 @@ function reset5() {
   check_git_; if (( $? != 0 )); then return 1; fi
 
   git log -5 --pretty=format:'%s' | xargs -0
+  git log -1 --pretty=format:'%s' | pbcopy
   
   git reset --quiet --soft HEAD~5
 }
@@ -4294,20 +4299,29 @@ function recommit() {
     return 1;
   fi
 
-  if (( ! recommit_is_s )); then
+  if (( recommit_is_s )); then
+    if git diff --cached --quiet; then
+      print " nothing to recommit, no staged changes" >&2
+      print " run${yellow_cor} recommit${reset_cor} to re-commit all changes" >&2
+      return 1;
+    else
+      git reset --quiet --soft HEAD~1 >/dev/null
+      if (( $? != 0 )); then return 1; fi
+    fi
+  else
     git reset --quiet --soft HEAD~1 >/dev/null
     if (( $? != 0 )); then return 1; fi
 
     if [[ -z "$Z_CURRENT_COMMIT_ADD" ]]; then
-      if confirm_from_ "do you want to recommit all changes with '$last_commit_msg'?"; then
+      if confirm_from_ "add all changes to commit: '$last_commit_msg'?"; then
         git add .
 
         if confirm_from_ "save this preference and don't ask again?"; then
           local i=0
           for i in {1..9}; do
             if [[ "$Z_CURRENT_PROJECT_SHORT_NAME" == "${Z_PROJECT_SHORT_NAME[$i]}" ]]; then
-              update_config_ $i "Z_COMMIT_ADD" 1
               Z_CURRENT_COMMIT_ADD=1
+              update_config_ $i "Z_COMMIT_ADD" 1
               break
             fi
           done
@@ -4315,14 +4329,8 @@ function recommit() {
           print ""
         fi
       fi
-    elif [[ $Z_CURRENT_COMMIT_ADD -eq 1 ]]; then
+    elif (( Z_CURRENT_COMMIT_ADD )); then
       git add .
-    fi
-  else
-    if git diff --cached --quiet; then
-      print " nothing to recommit, no staged changes" >&2
-      print " run${yellow_cor} recommit${reset_cor} to re-commit all changes" >&2
-      return 1;
     fi
   fi
 
@@ -4331,6 +4339,7 @@ function recommit() {
   if (( $? == 0 && ! recommit_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
+    git log -1 --pretty=format:'%s' | pbcopy
   fi
 }
 
@@ -4568,8 +4577,8 @@ function push() {
 
   if (( RET == 0 && quiet == 0 )); then
     print ""
-    git --no-pager log -1 --pretty=format:'%H %s' | xargs
-    RET=$?
+    git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
+    git log -1 --pretty=format:'%s' | pbcopy
   fi
 
   return $RET;
@@ -4603,8 +4612,8 @@ function pushf() {
 
   if (( RET == 0 && ! pushf_is_t && ! pushf_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
-    git --no-pager log -1 --pretty=format:'%H %s' | xargs
-    RET=$?
+    git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
+    git log -1 --pretty=format:'%s' | pbcopy
   fi
 
   return $RET;
@@ -4718,8 +4727,8 @@ function pull() {
 
   if (( RET == 0 && quiet == 0 )); then
     print ""
-    git --no-pager log -1 --pretty=format:'%H %s' | xargs
-    RET=$?
+    git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
+    git log -1 --pretty=format:'%s' | pbcopy
   fi
 
   return $RET;
