@@ -23,5 +23,5 @@
     "update_config": "zsh ./scripts/update_config.zsh",
     "update_external": "bash ./scripts/update.sh"
   },
-  "version": "0.0.9"
+  "version": "0.0.10"
 }
