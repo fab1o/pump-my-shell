@@ -8,7 +8,7 @@ echo " 🚀 Starting Pump My Shell setup..."
 # 1. Install Homebrew
 if ! command -v brew &>/dev/null; then
   echo " 🍺 Installing Homebrew..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  /bin/bash -c "$(url -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 else
   echo " ✅ Homebrew already installed."
 fi
@@ -16,7 +16,7 @@ fi
 # 2. Install Oh My Zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
   echo " 🔧 Installing Oh My Zsh..."
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  sh -c "$(url -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
   source "$HOME/.zshrc"
 else

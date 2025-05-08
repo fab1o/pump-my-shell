@@ -4,14 +4,14 @@
 set -e
 
 RELEASE_API="https://api.github.com/repos/fab1o/pump-my-shell/releases/latest"
-TAG=$(curl -s $RELEASE_API | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+TAG=$(curl -H "Cache-Control: no-cache" -s $RELEASE_API | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 if [ -z $TAG ]; then
   echo " failed to fetch the latest release version, try again later"
   exit 1
 fi
 
 DOWNLOAD_URL="https://github.com/fab1o/pump-my-shell/archive/refs/tags/${TAG}.zip"
-curl -fsSL -o pump-my-shell.zip "$DOWNLOAD_URL"
+curl -H "Cache-Control: no-cache" -fsSL -o pump-my-shell.zip "$DOWNLOAD_URL"
 if [ $? -ne 0 ]; then
   echo " failed to download the latest release, try again later"
   exit 1
