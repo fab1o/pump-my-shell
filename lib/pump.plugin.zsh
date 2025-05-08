@@ -2833,7 +2833,7 @@ function covc() {
     mkdir -p coverage &>/dev/null
   fi
 
-  git switch "$my_branch" --quiet
+  git switch "$my_branch" --quiet &>/dev/null
   if (( $? != 0 )); then
     print " did not match any branch known to git: $branch" >&2
     return 1;
@@ -2844,6 +2844,8 @@ function covc() {
 
   gum spin --title "running test coverage on $my_branch..." -- sh -c "read < $pipe_name" &
   spin_pid=$!
+
+  eval "$_setup" &>/dev/null
 
   eval "$_cov" --coverageReporters=text-summary > "coverage/coverage-summary.txt" 2>&1
   if (( $? != 0 )); then
@@ -2905,15 +2907,16 @@ function covc() {
   print "| Lines: $(printf "%.2f" $lines1)% | Lines: $(printf "%.2f" $lines2)% |"
   print ""
 
-  {
-    echo "#### Coverage"
-    echo "| \`$1\` | \`${my_branch}\` |"
-    echo "| --- | --- |"
-    echo "| Statements: $(printf "%.2f" $statements1)% | Statements: $(printf "%.2f" $statements2)% |"
-    echo "| Branches: $(printf "%.2f" $branches1)% | Branches: $(printf "%.2f" $branches2)% |"
-    echo "| Functions: $(printf "%.2f" $funcs1)% | Functions: $(printf "%.2f" $funcs2)% |"
-    echo "| Lines: $(printf "%.2f" $lines1)% | Lines: $(printf "%.2f" $lines2)% |"
-  } | pbcopy
+  # do not copy to clipboard because it could be problematic since this takes so long to finish
+  # {
+  #   echo "#### Coverage"
+  #   echo "| \`$1\` | \`${my_branch}\` |"
+  #   echo "| --- | --- |"
+  #   echo "| Statements: $(printf "%.2f" $statements1)% | Statements: $(printf "%.2f" $statements2)% |"
+  #   echo "| Branches: $(printf "%.2f" $branches1)% | Branches: $(printf "%.2f" $branches2)% |"
+  #   echo "| Functions: $(printf "%.2f" $funcs1)% | Functions: $(printf "%.2f" $funcs2)% |"
+  #   echo "| Lines: $(printf "%.2f" $lines1)% | Lines: $(printf "%.2f" $lines2)% |"
+  # } | pbcopy
 
   setopt monitor
   setopt notify
