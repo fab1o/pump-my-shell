@@ -5026,11 +5026,11 @@ function release() {
   eval "$(parse_flags_ "release_" "mnp" "$@")"
   (( release_is_d )) && set -x
 
-  if (( release_is_is_h )); then
+  if (( release_is_h )); then
     print "  ${yellow_cor}release ${solid_yellow_cor}[<tag>]${reset_cor} : to create a new release"
-    print "  ${yellow_cor}release -m${reset_cor} : to create a major release"
-    print "  ${yellow_cor}release -n${reset_cor} : to create a minor release"
-    print "  ${yellow_cor}release -p${reset_cor} : to create a patch release"
+    print "  ${yellow_cor}release -m${reset_cor} : to create a major type of release"
+    print "  ${yellow_cor}release -n${reset_cor} : to create a minor type of release"
+    print "  ${yellow_cor}release -p${reset_cor} : to create a patch type of release"
     return 0;
   fi
 
@@ -5039,8 +5039,6 @@ function release() {
     print " install gh:${blue_cor} https://github.com/cli/cli ${reset_cor}" >&2
     return 1;
   fi
-
-  local _pwd="$(pwd)";
 
   check_git_; if (( $? != 0 )); then return 1; fi
   check_pkg_; if (( $? != 0 )); then return 1; fi
@@ -5058,80 +5056,110 @@ function release() {
   fi
 
   local tag="$1"
+  local version_not_bumped=1
 
-  if [[ -z "$tag" ]]; then
-    local latest_tag=$(tags 1 2>/dev/null)
-    local pkg_tag=""
-    if [[ -f "package.json" ]]; then
-      if command -v jq &>/dev/null; then
-        pkg_tag=$(jq -r '.version' package.json);
+  if [[ -n "$tag" ]]; then
+    version_not_bumped=0;
+  else
+    if command -v npm &>/dev/null; then
+      local release_type=""
+      if (( release_is_m )); then
+        release_type="major"
+      elif (( release_is_n )); then
+        release_type="minor"
+      elif (( release_is_p )); then
+        release_type="patch"
       else
-        pkg_tag=$(grep '"version"' package.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+        print " no release type specified" >&2
+        print "  ${yellow_cor}release -h${reset_cor} for usage" >&2
+        return 1;
+      fi
+
+      pull --quiet
+      if (( $? != 0 )); then return 1; fi
+
+      npm version "$release_type" --no-commit-hooks --no-git-tag-version
+      version_not_bumped=$?
+
+      if (( version_not_bumped == 0 )); then
+        tag=$(npm pkg get version --workspaces=false | tr -d '"')
       fi
     fi
 
-    if [[ -n "$latest_tag" && "$latest_tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
-      latest_tag=${latest_tag#v}
+    if (( version_not_bumped )); then
+      local latest_tag=$(tags 1 2>/dev/null)
+      local pkg_tag=""
+
+      if [[ -f "package.json" ]]; then
+        if command -v jq &>/dev/null; then
+          pkg_tag=$(jq -r '.version' package.json);
+        else
+          pkg_tag=$(grep '"version"' package.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+        fi
+      fi
+
+      if [[ -n "$latest_tag" && "$latest_tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+        latest_tag=${latest_tag#v}
+      fi
+      if [[ -n "$pkg_tag" && "$pkg_tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+        pkg_tag=${pkg_tag#v}
+      fi
+
+      if [[ "$(printf '%s\n%s' "$latest_tag" "$pkg_tag" | sort -V | tail -n1)" == "$pkg_tag" ]]; then
+        tag="$pkg_tag"
+      else
+        tag="$latest_tag"
+      fi
     fi
-    if [[ -n "$pkg_tag" && "$pkg_tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
-      pkg_tag=${pkg_tag#v}
+  fi
+
+  if (( version_not_bumped )); then
+    if [[ -z "$tag" ]]; then
+      print " no tag found" >&2
+      return 1;
     fi
 
-    if [[ "$(printf '%s\n%s' "$latest_tag" "$pkg_tag" | sort -V | tail -n1)" == "$pkg_tag" ]]; then
-      tag="$pkg_tag"
+    if [[ "$tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+      tag=${tag#v}
+    fi
+
+    print_debug_ "release tag: $tag - pkg_tag $pkg_tag - latest_tag $latest_tag"
+
+    IFS='.' read -r major_version minor_version patch_version <<< "$tag"
+
+    if (( release_is_is_m )); then
+      ((major_version++))
+      minor_version=0
+      patch_version=0
+    elif (( release_is_is_n )); then
+      ((minor_version++))
+      patch_version=0
     else
-      tag="$latest_tag"
+      ((patch_version++))
     fi
-  fi
 
-  if [[ -z "$tag" ]]; then
-    print " no tag found" >&2
-    cd "$_pwd"
-    return 1;
-  fi
+    tag="${major_version}.${minor_version}.${patch_version}"
 
-  if [[ "$tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
-    tag=${tag#v}
-  fi
+    if [[ "$tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
+      print " not able to build tag: ${major_version}.${minor_version}.${patch_version}" >&2
+      return 1;
+    fi
 
-  version="0.0.0"
-  IFS='.' read -r major_version minor_version patch_version <<< "$tag"
-
-  if (( release_is_is_m )); then
-    ((major_version++))
-    minor_version=0
-    patch_version=0
-  elif (( release_is_is_n )); then
-    ((minor_version++))
-    patch_version=0
-  elif (( release_is_is_p )); then
-    ((patch_version++))
-  fi
-
-  tag="${major_version}.${minor_version}.${patch_version}"
-
-  if [[ "$tag" =~ ^v[0-9]+.[0-9]+.[0-9]+$ ]]; then
-    print " not able to build tag: ${major_version}.${minor_version}.${patch_version}" >&2
-    cd "$_pwd"
-    return 1;
+    if ! confirm_from_ "create release: $tag ?"; then
+      return 0;
+    fi
   fi
 
   git add .
-  if (( $? != 0 )); then cd "$_pwd"; return 1; fi
+  if (( $? != 0 )); then return 1; fi
 
   #git add package.json *.lock *lock.json 2>/dev/null
   git commit -m "chore: bump version to $tag" --no-verify
-  if (( $? != 0 )); then cd "$_pwd"; return 1; fi
 
   tag "$tag"
-  if (( $? != 0 )); then cd "$_pwd"; return 1; fi
+  if (( $? != 0 )); then return 1; fi
 
   gh release create "$tag" --title "$tag" --generate-notes
-  RET=$?
-
-  cd "$_pwd"
-
-  return $RET;
 }
 
 function tag() {
@@ -5139,7 +5167,7 @@ function tag() {
   (( tag_is_d )) && set -x
 
   if (( tag_is_h )); then
-    print "  ${yellow_cor}tag ${solid_yellow_cor}[<name>]${reset_cor} : to create a new tag"
+    print " release_ = ${yellow_cor}tag ${solid_yellow_cor}[<name>]${reset_cor} : to create a new tag"
     return 0;
   fi
 
