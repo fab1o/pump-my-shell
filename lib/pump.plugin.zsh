@@ -435,14 +435,14 @@ function refresh() {
 }
 
 function upgrade() {
-  update_ -f
-
   if command -v omz &>/dev/null; then
     omz update
   fi
   if command -v oh-my-posh &>/dev/null; then
     oh-my-posh upgrade
   fi
+
+  update_ -f
 }
 
 function input_from_() {
@@ -1370,9 +1370,10 @@ function help() {
   print ""
   help_line_ "git release" "${solid_cyan_cor}"
   print ""
-  print " ${solid_cyan_cor} dtag ${reset_cor}\t\t = delete tag remotely"
+  print " ${solid_cyan_cor} dtag ${reset_cor}\t\t = delete a tag"
+  print " ${solid_cyan_cor} drelease ${reset_cor}\t\t = delete a release"
   print " ${solid_cyan_cor} release ${reset_cor}\t\t = create a release"
-  print " ${solid_cyan_cor} tag ${reset_cor}\t\t = create tag remotely"
+  print " ${solid_cyan_cor} tag ${reset_cor}\t\t = create a tag"
   print " ${solid_cyan_cor} tags ${reset_cor}\t\t = list latest tags"
   print " ${solid_cyan_cor} tags 1 ${reset_cor}\t = display latest tag"
 
@@ -4747,13 +4748,14 @@ function fetch() {
     fi
   fi
 
-  if [[ $1 != --* ]]; then
-    git fetch --prune origin "$1" ${@:2}
+  if [[ -n "$1" && $1 != --* ]]; then
+    git fetch origin "$1" --prune ${@:2}
     RET=$?
   elif (( fetch_is_a )); then
     git fetch --all --prune $@
     RET=$?
   else
+    git fetch origin
     RET=$?
   fi
 
@@ -4993,7 +4995,6 @@ function pull() {
   print_debug_ "pull branch: $branch - quiet: $quiet"
 
   # local branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
-  local branch="$1"
 
   local RET=0;
 
@@ -5005,8 +5006,8 @@ function pull() {
     fi
   fi
 
-  if [[ -n "$branch" ]]; then
-    git pull origin "$branch" --rebase --autostash $@
+  if [[ -n "$1" && $1 != --* ]]; then
+    git pull origin "$1" --rebase --autostash ${@:2}
     RET=$?
   else
     git pull origin --rebase --autostash $@
@@ -5020,6 +5021,52 @@ function pull() {
   fi
 
   return $RET;
+}
+
+function drelease() {
+  eval "$(parse_flags_ "drelease_" "" "$@")"
+  (( drelease_is_d )) && set -x
+
+  if (( drelease_is_h )); then
+    print "  ${yellow_cor}drelease ${solid_yellow_cor}[<tag>]${reset_cor} : to delete a release"
+    return 0;
+  fi
+
+  if ! command -v gh &>/dev/null; then
+    print " drelease requires gh" >&2
+    print " install gh:${blue_cor} https://github.com/cli/cli ${reset_cor}" >&2
+    return 1;
+  fi
+
+  open_prj_for_git_
+  if (( $? != 0 )); then return 1; fi
+
+  local tag="$1"
+
+  if [[ -z "$tag" ]]; then
+    local tags=$(tags 2>/dev/null)
+    if [[ -z "$tags" ]]; then
+      print " no tags found to delete" >&2
+      return 0;
+    fi
+    local selected_tags=($(choose_multiple_ 0 "select tags to delete" 20 $(echo "$tags" | tr '\n' ' ')))
+    if [[ -z "$selected_tags" ]]; then
+      return 1;
+    fi
+
+    for tag in $selected_tags; do
+      print_debug_ "deleting release: $tag"
+      if command -v gum &>/dev/null; then
+        gum spin --title "deleting release: $tag" -- gh release delete "$tag" --cleanup-tag -y 2>/dev/tty
+      else
+        print " deleting release: $tag"
+        gh release delete "$tag" --cleanup-tag -y
+      fi
+    done
+    return 0;
+  fi
+
+  gh release delete "$tag" --cleanup-tag -y
 }
 
 function release() {
@@ -5160,6 +5207,12 @@ function release() {
   if (( $? != 0 )); then return 1; fi
 
   gh release create "$tag" --title "$tag" --generate-notes
+  RET=$?
+
+  push -t --quiet
+  push --quiet
+
+  return $RET;
 }
 
 function tag() {
