@@ -397,7 +397,7 @@ function update_() {
 
     if command -v gum &>/dev/null; then
       gum spin --title "updating pump-my-shell..." -- \
-        /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"
+        /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh) 2>/dev/tty"
     else
       print " updating pump-my-shell..."
       /bin/bash -c "$(curl -H "Cache-Control: no-cache" -fsSL https://raw.githubusercontent.com/fab1o/pump-my-shell/refs/heads/main/scripts/update.sh)"  

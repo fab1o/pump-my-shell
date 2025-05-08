@@ -1,8 +1,6 @@
 #!/bin/bash
 # This script is used to install the pump plugin for Oh My Zsh for the 1st time
 
-set -e
-
 echo " installing pump-my-shell..."
 
 if ! command -v zsh &>/dev/null; then
@@ -34,7 +32,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-rm -rf temp >/dev/null &>/dev/null
+rm -rf temp
 mkdir -p temp
 unzip -q -o pump-my-shell.zip -d temp
 
@@ -45,10 +43,10 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-rm pump-my-shell.zip >/dev/null &>/dev/null
+rm pump-my-shell.zip
 
 if command -v zsh &>/dev/null; then
-  pushd "temp/pump-my-shell-$TAG" &>/dev/null
+  pushd "temp/pump-my-shell-$TAG" 1>/dev/null
 
   if [ $? -ne 0 ]; then
     echo " failed to change directory to temp/pump-my-shell-$TAG, try running: " >&2
@@ -63,10 +61,10 @@ if command -v zsh &>/dev/null; then
     echo ""
   fi
 
-  popd &>/dev/null
+  popd 1>/dev/null
 else
   echo " no Zsh found, install Oh My Zsh, then run the script again to finish the installation" >&2
   echo " \033[94m https://ohmyz.sh/\033[0m" >&2
 fi
 
-rm -rf temp >/dev/null &>/dev/null
+rm -rf temp >/dev/null

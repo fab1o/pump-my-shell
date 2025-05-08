@@ -48,7 +48,7 @@ if [[ $FOUND_PUMP -eq 0 ]]; then
   if sed -E 's/^[[:space:]]*#?[[:space:]]*plugins=\(([^)]*)\)/plugins=(\1 pump)/' "$zshrc_file" > "$tmp_file"; then
     mv "$tmp_file" "$zshrc_file"
   else
-    echo "Error: failed to update $zshrc_file" >&2
+    echo " error: failed to update $zshrc_file" >&2
     rm -f "$tmp_file"
     exit 1
   fi

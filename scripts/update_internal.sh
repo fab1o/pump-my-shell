@@ -6,7 +6,7 @@ set -e
 SRC_DIR="./lib"
 DEST_DIR="$HOME/.oh-my-zsh/plugins/pump"
 
-mkdir -p "$DEST_DIR" >/dev/null &>/dev/null
+mkdir -p "$DEST_DIR"
 yes | cp -Rf $SRC_DIR/pump.omp.json "$DEST_DIR/pump.omp.json"
 yes | cp -Rf $SRC_DIR/pump.plugin.zsh "$DEST_DIR/pump.plugin.zsh"
 

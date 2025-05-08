@@ -1,8 +1,6 @@
 #!/bin/bash
 # This script is used to update the pump plugin for Oh My Zsh running on bash from curl
 
-set -e
-
 sleep 1
 RELEASE_API="https://api.github.com/repos/fab1o/pump-my-shell/releases/latest"
 TAG=$(curl -H "Cache-Control: no-cache" -s $RELEASE_API | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
@@ -18,18 +16,16 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-rm -rf temp &>/dev/null
-mkdir -p temp &>/dev/null
+rm -rf temp
+mkdir -p temp
 unzip -q -o pump-my-shell.zip -d temp
 
 if [ $? -ne 0 ]; then
   echo " failed to unzip the downloaded file, try again later"
-  rm pump-my-shell.zip &>/dev/null
-  rm -rf temp &>/dev/null
+  rm pump-my-shell.zip
+  rm -rf temp
   exit 1
 fi
-
-rm pump-my-shell.zip &>/dev/null
 
 if [ $? -ne 0 ]; then
   echo " failed to unzip the downloaded file, try again later" >&2
@@ -38,7 +34,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-pushd "temp/pump-my-shell-$TAG" &>/dev/null
+pushd "temp/pump-my-shell-$TAG" 1>/dev/null
 
 if [ $? -ne 0 ]; then
   echo " failed to change directory to temp/pump-my-shell-$TAG, try running: " >&2
@@ -52,5 +48,6 @@ else
   echo ""
 fi
 
-popd &>/dev/null
-rm -rf temp >/dev/null &>/dev/null
+popd 1>/dev/null
+rm pump-my-shell.zip
+rm -rf temp >/dev/null
