@@ -2889,6 +2889,16 @@ function covc() {
   print "| Lines: $(printf "%.2f" $lines1)% | Lines: $(printf "%.2f" $lines2)% |"
   print ""
 
+  {
+    echo "#### Coverage"
+    echo "| \`$1\` | \`${my_branch}\` |"
+    echo "| --- | --- |"
+    echo "| Statements: $(printf "%.2f" $statements1)% | Statements: $(printf "%.2f" $statements2)% |"
+    echo "| Branches: $(printf "%.2f" $branches1)% | Branches: $(printf "%.2f" $branches2)% |"
+    echo "| Functions: $(printf "%.2f" $funcs1)% | Functions: $(printf "%.2f" $funcs2)% |"
+    echo "| Lines: $(printf "%.2f" $lines1)% | Lines: $(printf "%.2f" $lines2)% |"
+  } | pbcopy
+
   setopt monitor
   setopt notify
 }
@@ -4339,7 +4349,7 @@ function recommit() {
   if (( $? == 0 && ! recommit_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
-    git log -1 --pretty=format:'%s' | pbcopy
+    git log -1 --pretty=format:'%H %s' | pbcopy
   fi
 }
 
@@ -4578,7 +4588,7 @@ function push() {
   if (( RET == 0 && quiet == 0 )); then
     print ""
     git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
-    git log -1 --pretty=format:'%s' | pbcopy
+    git log -1 --pretty=format:'%H %s' | pbcopy
   fi
 
   return $RET;
@@ -4613,7 +4623,7 @@ function pushf() {
   if (( RET == 0 && ! pushf_is_t && ! pushf_is_q && ! ${argv[(Ie)--quiet]} )); then
     print ""
     git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
-    git log -1 --pretty=format:'%s' | pbcopy
+    git log -1 --pretty=format:'%H %s' | pbcopy
   fi
 
   return $RET;
@@ -4688,7 +4698,7 @@ function pull() {
   if (( RET == 0 && quiet == 0 )); then
     print ""
     git --no-pager log -1 --pretty=format:'%H %s' | xargs -0
-    git log -1 --pretty=format:'%s' | pbcopy
+    git log -1 --pretty=format:'%H' | pbcopy
   fi
 
   return $RET;
