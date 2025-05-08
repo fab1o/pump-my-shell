@@ -4690,8 +4690,7 @@ function dtag() {
 
   local _pwd="$(PWD)";
 
-  open_prj_for_git_
-  if (( $? != 0 )); then return 1; fi
+  check_git_; if (( $? != 0 )); then return 1; fi
   
   fetch --quiet
 
@@ -4796,8 +4795,7 @@ function tag() {
 
   local _pwd="$(PWD)";
 
-  open_prj_for_git_
-  if (( $? != 0 )); then return 1; fi
+  check_git_; if (( $? != 0 )); then return 1; fi
   
   prune &>/dev/null
 
@@ -4847,8 +4845,7 @@ function tags() {
 
   local _pwd="$(PWD)";
 
-  open_prj_for_git_
-  if (( $? != 0 )); then return 1; fi
+  check_git_; if (( $? != 0 )); then return 1; fi
 
   prune &>/dev/null
 
@@ -5007,17 +5004,18 @@ function get_prj_for_git_() {
     fi
   done
 
-  if [[ -z "$folder" ]]; then
-    setopt null_glob
-    local i=0
-    for i in */; do
-      if is_git_repo_ "${i%/}"; then
-        folder="$proj_folder/${i%/}"
-        break;
-      fi
-    done
-    unsetopt null_glob
-  fi
+  # this is not a good idea, it could cause going into other projects
+  # if [[ -z "$folder" ]]; then
+  #   setopt null_glob
+  #   local i=0
+  #   for i in */; do
+  #     if is_git_repo_ "${i%/}"; then
+  #       folder="$proj_folder/${i%/}"
+  #       break;
+  #     fi
+  #   done
+  #   unsetopt null_glob
+  # fi
 
   cd "$_pwd"
 
@@ -5025,7 +5023,7 @@ function get_prj_for_git_() {
     return 1;
   fi
 
-  print "$folder"
+  echo "$folder"
 }
 
 # List branches -----------------------------------------------------------------------
