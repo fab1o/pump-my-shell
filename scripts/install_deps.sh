@@ -31,6 +31,14 @@ else
   echo " ✅ Oh My Posh already installed."
 fi
 
+# 1. Install Homebrew
+if ! command -v jq &>/dev/null; then
+  echo " 🛠️ Installing JQ..."
+  brew install jq
+else
+  echo " ✅ jq already installed."
+fi
+
 # 4. Install Nerd Fonts
 FONT_DIR="$HOME/Library/Fonts"
 FONT_CHECK=$(ls "$FONT_DIR" | grep -i "MesloLGM.*Nerd.*Font" || true)

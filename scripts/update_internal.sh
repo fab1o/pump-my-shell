@@ -10,7 +10,9 @@ mkdir -p "$DEST_DIR"
 yes | cp -Rf $SRC_DIR/pump.omp.json "$DEST_DIR/pump.omp.json"
 yes | cp -Rf $SRC_DIR/pump.plugin.zsh "$DEST_DIR/pump.plugin.zsh"
 
-VERSION=$(jq -r '.version' package.json)
+# jq require brew install jq
+# VERSION=$(jq -r '.version' package.json)
+VERSION=$(grep '"version"' package.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
 echo "$VERSION" > $DEST_DIR/.version
 
 echo " pump in version $VERSION! Now restart your terminal"

@@ -39,6 +39,7 @@ Run this to install all required and recommended dependencies:
 
 - ✅ **Required**:
   - [Oh My Zsh](https://ohmyz.sh/)
+  - [Homebrew](https://brew.sh/) to install dependencies
 - 🌟 **Recommended**:
   - [Oh My Posh](https://ohmyposh.dev/)  
     → Works best with [Nerd Fonts](https://ohmyposh.dev/docs/installation/fonts)
